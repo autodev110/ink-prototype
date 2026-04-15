@@ -33,6 +33,7 @@
 
     function cacheDom() {
         dom.root = document.querySelector("[data-app]");
+        dom.appHeader = document.querySelector(".app-header");
         dom.sessionLabel = document.getElementById("sessionLabel");
         dom.storyCredit = document.getElementById("storyCredit");
         dom.sceneHeading = document.getElementById("sceneHeading");
@@ -49,6 +50,7 @@
         dom.healthCard = document.getElementById("healthCard");
         dom.ammoCard = document.getElementById("ammoCard");
         dom.cardsCard = document.getElementById("cardsCard");
+        dom.restartCard = document.getElementById("restartCard");
         dom.statusPlayer = document.getElementById("statusPlayer");
         dom.statusHealth = document.getElementById("statusHealth");
         dom.statusAmmo = document.getElementById("statusAmmo");
@@ -123,11 +125,11 @@
                 return;
             }
 
+            state.isAdvancing = false;
             renderScene(packet);
             renderChoices(packet);
             updateStatus();
             updateChrome(packet);
-            state.isAdvancing = false;
 
             if (options.scroll !== false) {
                 scrollToTop();
@@ -417,7 +419,7 @@
         var sessionText = "";
         var sceneHeading = "";
         var choiceHeading = "";
-        var titleText = "Project Mimic Root";
+        var titleText = "Patient 0000";
 
         if (!playerId) {
             sessionText = "Select a subject to begin.";
@@ -428,19 +430,29 @@
             sceneHeading = "Final Record";
             choiceHeading = "No Further Actions";
             titleText = packet.endingTitle
-                ? packet.endingTitle + " • Project Mimic Root"
-                : "Project Mimic Root";
+                ? packet.endingTitle + " • Patient 0000"
+                : "Patient 0000";
         } else {
             sessionText = "Subject " + playerId + " // containment in progress.";
             sceneHeading = "Current Scene";
             choiceHeading = "Available Actions";
-            titleText = "Subject " + playerId + " • Project Mimic Root";
+            titleText = "Subject " + playerId + " • Patient 0000";
         }
 
         dom.sessionLabel.textContent = sessionText;
         dom.sceneHeading.textContent = sceneHeading;
         dom.choicesHeading.textContent = choiceHeading;
         document.title = titleText;
+
+        var hasStarted = Boolean(playerId);
+        document.body.classList.toggle("has-started", hasStarted);
+        if (dom.appHeader) {
+            dom.appHeader.hidden = false;
+            dom.appHeader.style.display = hasStarted ? "none" : "";
+        }
+        if (dom.restartCard) {
+            dom.restartCard.hidden = !hasStarted;
+        }
 
         document.body.classList.toggle("is-ending", packet.isEnding);
         dom.endingPanel.hidden = !packet.isEnding;
@@ -472,7 +484,7 @@
 
         dom.sceneHeading.textContent = "System Error";
         dom.sessionLabel.textContent = "The story interface could not continue.";
-        document.title = "Project Mimic Root";
+        document.title = "Patient 0000";
     }
 
     function readVar(name, fallback) {

@@ -2,25 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Project Mimic Root</title>
+    <title>Patient 0000</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000000">
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+    <div class="background-layer" aria-hidden="true"></div>
     <div class="app-shell" data-app>
         <header class="app-header" aria-label="Application header">
             <div class="header-copy">
-                <p class="system-label">Containment Narrative Interface</p>
-                <h1>Project Mimic Root</h1>
+                <h1>Patient 0000</h1>
                 <p id="sessionLabel" class="session-label">Intake selection pending.</p>
                 <p id="storyCredit" class="story-credit" hidden></p>
-            </div>
-
-            <div class="header-actions">
-                <button id="restartButton" class="control-button" type="button">
-                    Restart Run
-                </button>
             </div>
         </header>
 
@@ -45,11 +39,17 @@
                     <span class="status-label">Access</span>
                     <ul id="statusCards" class="card-list" aria-label="Collected access cards"></ul>
                 </div>
+
+                <div class="status-card status-card--action" id="restartCard" hidden>
+                    <span class="status-label">Control</span>
+                    <button id="restartButton" class="control-button control-button--status" type="button">
+                        Restart Run
+                    </button>
+                </div>
             </section>
 
             <section class="scene-panel panel" aria-labelledby="sceneHeading">
                 <div class="panel-header">
-                    <p class="panel-label">Current Scene</p>
                     <h2 id="sceneHeading">Intake Selection</h2>
                 </div>
 
@@ -58,7 +58,6 @@
 
             <section id="choicesPanel" class="choices-panel panel" aria-labelledby="choicesHeading">
                 <div class="panel-header">
-                    <p class="panel-label">Available Actions</p>
                     <h2 id="choicesHeading">Select Subject</h2>
                 </div>
 

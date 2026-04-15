@@ -3,7 +3,7 @@
 // April 6 2026
 
 VAR health = 3
-VAR bullets = 2
+VAR bullets = 0
 
 VAR found_bullets_storage = false
 VAR found_bullets_lab = false
@@ -149,6 +149,7 @@ Inside are old gauze rolls, empty pill bottles, and a black handgun sealed in a 
 
 {found_gun == false:
 ~ found_gun = true
+~ bullets = MIN(bullets + 2, 5)
 You tear the bag open and take the gun.
 It feels heavy, real, and slightly warm in your hand.
 - else:
