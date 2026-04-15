@@ -18,10 +18,15 @@ VAR killed_stalker = false
 VAR killed_nest = false
 
 VAR locker_wounded = false
+VAR locker_revealed = false
 VAR nest_wounded = false
 VAR hall_shape_shot = false
 VAR hall_shape_dead = false
 VAR hall_shape_gone = false
+VAR hall_swarm_awake = false
+VAR hall_swarm_pending = false
+VAR hall_swarm_kills = 0
+VAR tried_empty_hall_shot = false
 VAR killed_archive_creature = false
 VAR archive_creature_revealed = false
 VAR archive_creature_fled = false
@@ -35,8 +40,20 @@ VAR heard_lullaby = false
 VAR saw_subject_file = false
 VAR heard_intercom_23 = false
 VAR touched_root = false
+VAR visited_patient_room = false
+VAR visited_hall_a = false
+VAR visited_mural_room = false
+VAR visited_observation = false
+VAR visited_lab3 = false
+VAR visited_security_room = false
+VAR visited_generator_hall = false
+VAR visited_exit_processing = false
+VAR visited_lullaby_room = false
 
 VAR burned_clean = false
+VAR saw_perimeter_shed = false
+VAR saw_low_gap = false
+VAR tried_empty_nest_finish = false
 
 VAR player_id = ""
 
@@ -81,20 +98,32 @@ like a sound remembered instead of heard.
 * [Get off the bed] -> patient_room
 
 === patient_room ===
-You stand slowly.
-
-The patient room is small and windowless.
-There is a sink with brown water stains, a metal cabinet, and a door hanging slightly open.
-The fluorescent light above you hums like it's struggling to stay alive.
-
-{player_id == "0012":
-The sink is mounted a little too high.
-Near the base of the far wall, scraps of paper suns and smiling faces still cling beneath old tape.
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
 }
+{
+- visited_patient_room == true:
+    You are back in the patient room.
 
-{player_id == "0023":
-A faint pressure builds behind your eyes when you look at the door,
-as if some part of you already knows the halls outside.
+    The fluorescent light still hums overhead.
+    The sink, cabinet, and narrow bed all wait exactly where you left them.
+- else:
+    ~ visited_patient_room = true
+    You stand slowly.
+
+    The patient room is small and windowless.
+    There is a sink with brown water stains, a metal cabinet, and a door hanging slightly open.
+    The fluorescent light above you hums like it's struggling to stay alive.
+
+    {player_id == "0012":
+    The sink is mounted a little too high.
+    Near the base of the far wall, scraps of paper suns and smiling faces still cling beneath old tape.
+    }
+
+    {player_id == "0023":
+    A faint pressure builds behind your eyes when you look at the door,
+    as if some part of you already knows the halls outside.
+    }
 }
 
 HEALTH: {health}/3
@@ -109,8 +138,8 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Check the cabinet] -> cabinet
-+ [Look under the bed] -> under_bed
+* [Check the cabinet] -> cabinet
+* [Look under the bed] -> under_bed
 + [Step into the hallway] -> hall_a
 
 === cabinet ===
@@ -142,23 +171,49 @@ You back away.
 -> patient_room
 
 === hall_a ===
-You step into the hallway.
+{
+- visited_hall_a == true:
+    You step back into the main hallway.
 
-A long medical corridor stretches in both directions under flickering lights.
-Wheelchairs sit abandoned against the wall.
+    The same wheelchairs sit abandoned against the wall beneath the flickering lights.
+- else:
+    ~ visited_hall_a = true
+    You step into the hallway.
+
+    A long medical corridor stretches in both directions under flickering lights.
+    Wheelchairs sit abandoned against the wall.
+}
 
 { hall_shape_shot == false:
-Far away, something thin and human-like moves slowly behind the frosted glass at the end of the corridor.
+Far away, a narrow human outline stands behind the frosted glass at the end of the corridor.
+It stays still in the way a person would not.
 - else:
     { hall_shape_dead == true:
-    At the far end, a collapsed thing lies half in a side alcove where it finally bled out.
+    At the far end, a narrow body lies collapsed half inside a side alcove where it finally bled out.
     - else:
         { hall_shape_gone == true:
         A dark streak vanishes into a side alcove at the far end of the corridor.
         - else:
-        A wet smear marks the wall where the distant shape fled after your shot.
+        A dark hand-shaped smear marks the wall where the distant shape fled after your shot.
         }
     }
+}
+
+{hall_swarm_awake == true:
+    {
+    - hall_swarm_kills == 0:
+    Movement keeps stuttering between the patient doors now.
+    Something takes position behind a wheelchair whenever you stop looking straight at it.
+    - hall_swarm_kills == 1:
+    One body lies slack near a wheelchair, but more shapes keep exchanging places from doorway to doorway.
+    - else:
+    Several of the things lie broken along the tiles now.
+    The rest never hold the same positions twice.
+    }
+}
+
+{hall_swarm_awake == true and hall_swarm_pending == true:
+-> hall_swarm_encounter
 }
 
 A sign overhead reads:
@@ -185,22 +240,42 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Go to Observation] -> observation
-+ [Go to Testing] -> testing_hall
+{keycard_a == false:
++ [Try the Security door] -> security_door
+- else:
 + [Go to Security] -> security_door
-* [Hide behind the overturned cart and listen] -> hide_hall
+}
 {hall_shape_shot == false:
-+ [Use 1 bullet on the distant shape] -> shoot_hall_shape
+    {found_gun == true and bullets > 0:
+    + [Use 1 bullet on the distant shape] -> shoot_hall_shape
+    - else:
+        {found_gun == true and tried_empty_hall_shot == false:
+        * [Try to fire at the distant shape] -> shoot_hall_shape
+        }
+    }
 }
 {hall_shape_shot == true:
 + [Follow the trail into the side alcove] -> hall_trail
 }
-{player_id == "0012" and found_mural == false:
-+ [Follow the faded painted handprints along the lower wall] -> mural_room
+{player_id == "0012":
+    {
+    - visited_mural_room == false:
+    + [Follow the faded painted handprints along the lower wall] -> mural_room
+    - else:
+    + [Return to the room with the painted handprints] -> mural_room
+    }
 }
 {player_id == "0012" and power_on == true and heard_lullaby == false:
-+ [Follow the broken lullaby] -> lullaby_room
+    {
+    - visited_lullaby_room == false:
+    + [Follow the broken lullaby] -> lullaby_room
+    - else:
+    + [Return to the room with the broken lullaby] -> lullaby_room
+    }
 }
++ [Go to Observation] -> observation
++ [Go to Testing] -> testing_hall
+* [Hide behind the overturned cart and listen] -> hide_hall
 + [Go back to patient room] -> patient_room
 
 === hide_hall ===
@@ -210,11 +285,19 @@ You crouch behind an overturned supply cart and stay still.
 The thing at the far end stops moving.
 
 For a long moment, the corridor is silent.
-Then the shape jerks its head toward some other noise deeper in the facility and vanishes from sight.
+Then the head tilts toward some other sound deeper in the facility and the outline slips out of sight.
 You are safe for now.
 - else:
-The corridor holds still except for the soft sound of something wet dragging far away.
-Nothing comes for you.
+    {hall_swarm_awake == true:
+    The corridor does not go quiet.
+
+    Bare feet tap tile out of sight.
+    Something tests the top of the cart with two careful fingers, then moves on.
+    After a long minute the motion thins back to scattered shapes and breath from too many throats.
+    - else:
+    The corridor holds still except for a faint scrape farther down, patient and irregular.
+    Nothing comes for you.
+    }
 }
 
 -> hall_a
@@ -228,13 +311,15 @@ The mistake costs you a moment of courage.
 {bullets > 0:
 ~ bullets = bullets - 1
 ~ hall_shape_shot = true
+~ hall_swarm_awake = true
+~ hall_swarm_pending = true
 You fire once.
 
 The muzzle flash blinds you for half a second.
 The shot echoes through the corridor like an alarm.
 
-The shape convulses and disappears from view.
-Instead, you hear movement everywhere.
+The outline buckles out of sight behind the glass.
+Instead, motion answers you from every direction.
 Multiple things are now awake.
 
 AMMO: {bullets}/5
@@ -249,10 +334,116 @@ AMMO: {bullets}/5
 }
 -> hall_a
 - else:
+~ tried_empty_hall_shot = true
 The gun clicks dry.
 You have no bullets to waste.
 -> hall_a
 }
+}
+
+=== hall_swarm_encounter ===
+~ hall_swarm_pending = false
+
+{
+- hall_swarm_kills == 0:
+    The corridor answers your shot all at once.
+
+    Shapes step out from half-open rooms on both sides.
+    One moves along the ceiling with slow, deliberate placement while another crosses low behind a wheelchair without seeming to bend.
+- hall_swarm_kills == 1:
+    The hallway erupts again.
+
+    Another shape drops from a doorway farther down and comes at you in a sideways run while something else keeps pace just out of sight.
+- else:
+    The hall has learned you.
+
+    More shapes trade positions between the ward doors, fast, coordinated, difficult to count.
+}
+
+One of them stops pretending not to see you and comes straight in.
+
+HEALTH: {health}/3
+AMMO: {bullets}/5
+
+{
+- keycard_a == true and keycard_b == true:
+    ACCESS CARDS: A, B
+- keycard_a == true:
+    ACCESS CARD A
+- keycard_b == true:
+    ACCESS CARD B
+}
+
+* [Shoot the nearest one and clear space] -> hall_swarm_shoot
+* [Cut between the wheelchairs and run] -> hall_swarm_run
+* [Drop behind the overturned cart and wait for a gap] -> hall_swarm_hide
+
+=== hall_swarm_shoot ===
+{found_gun == false:
+You reach for a gun you do not have.
+The first creature is already on you.
+-> hall_swarm_attack
+- else:
+{bullets > 0:
+~ bullets = bullets - 1
+~ hall_swarm_kills = hall_swarm_kills + 1
+You fire at the nearest shape.
+
+{hall_swarm_kills == 1:
+It turns in the shot and collapses against the wall as if the idea of a spine left it all at once.
+- else:
+It drops beside one of the abandoned wheelchairs and keeps moving for a second after the rest of it has stopped.
+}
+
+The rest break pattern just long enough to give you breathing room.
+
+AMMO: {bullets}/5
+
+{
+- keycard_a == true and keycard_b == true:
+    ACCESS CARDS: A, B
+- keycard_a == true:
+    ACCESS CARD A
+- keycard_b == true:
+    ACCESS CARD B
+}
+-> hall_a
+- else:
+The gun clicks dry.
+Every moving thing in the hallway snaps toward the sound.
+-> hall_swarm_attack
+}
+}
+
+=== hall_swarm_run ===
+You break sideways and run.
+
+A shape slams off the wall beside you.
+Another catches your sleeve as you wrench past the overturned cart.
+
+-> hall_swarm_attack
+
+=== hall_swarm_hide ===
+You flatten behind the overturned cart and tuck your arms in tight.
+
+Bare feet tap tile inches away.
+Something leans over the cart and draws air through its teeth, then drifts on.
+After a long half minute the corridor thins back to scattered movement.
+
+-> hall_a
+
+=== hall_swarm_attack ===
+The nearest one reaches you in a burst of elbows and teeth.
+Another scores across your shoulder before both of them break away toward the side rooms.
+
+~ health = health - 1
+
+{health <= 0:
+-> death_hall_swarm
+- else:
+HEALTH: {health}/3
+You kick free, stagger backward, and force enough distance to breathe again.
+-> hall_a
 }
 
 === hall_trail ===
@@ -260,9 +451,9 @@ You have no bullets to waste.
 - hall_shape_dead == true:
     You follow the black streak into a shallow side alcove.
 
-    The thing you shot lies twisted beside a dented medicine cart.
+    The body lies against a dented medicine cart.
     Part of its face is gone.
-    One arm is still hooked around the wheel as if it tried to pull itself farther before dying.
+    One arm is still hooked around the wheel as if it tried to steady itself before dying.
 
     It is not getting back up.
 
@@ -271,8 +462,8 @@ You have no bullets to waste.
 - hall_shape_gone == true:
     You follow the streak into a shallow side alcove.
 
-    Only blood, shed skin, and a bent medicine cart remain.
-    Whatever dragged itself in here is gone now.
+    Only blood, loosened skin, and a bent medicine cart remain.
+    Whatever drew itself in here kept going.
 
     + [Return to the hallway] -> hall_a
 
@@ -280,14 +471,15 @@ You have no bullets to waste.
     You follow the streak into a shallow side alcove.
 
     The thing is still there.
-    A thin, wet body is folded against a medicine cart, one arm hanging wrong.
-    Its ribs twitch beneath stretched skin.
-    It turns its head toward you in a series of small, broken movements.
+    A narrow body is propped against a medicine cart, as if it studied the posture and got close enough.
+    One arm hangs at a bad angle.
+    Its ribs lift in small, uneven counts.
+    When it notices you, the head adjusts toward you a little at a time.
 
-    * [Finish it] -> hall_finish
     {player_id == "0023":
         * [Stand still and let it look at you] -> hall_attuned
     }
+    * [Finish it] -> hall_finish
     + [Back away slowly] -> hall_a
 }
 
@@ -302,8 +494,8 @@ The creature jerks toward you.
 ~ hall_shape_dead = true
 You fire into its skull at close range.
 
-The body slams once against the cart, then goes loose.
-The dragging sound ends for good.
+The body knocks once against the cart, then slackens.
+The dragging sound ends.
 
 AMMO: {bullets}/5
 
@@ -326,27 +518,25 @@ The creature launches itself at you.
 === hall_attuned ===
 You do not move.
 
-The thing shudders as it studies you.
+The thing trembles as it studies you.
 For a second, its breathing falls into the same rhythm as your own.
-Then it recoils, drags itself backward into a cracked wall panel, and vanishes into the dark.
+Then it eases itself backward into a cracked wall panel and vanishes into the dark.
 
 ~ hall_shape_gone = true
 
-You are left staring at the empty alcove and the wet streak it left behind.
+You are left staring at the empty alcove and the dark streak it left behind.
 -> hall_trail
 
 === hall_shape_attack ===
-The wounded creature hits you harder than something that damaged should be able to move.
+The wounded thing closes the distance in one broken rush.
 
-Its teeth rake across your forearm before it twists away and disappears through a broken wall panel.
+Its teeth score across your forearm before it slips through the broken wall panel and disappears.
 
 ~ health = health - 1
 ~ hall_shape_gone = true
 
 {health <= 0:
-You crumple beside the medicine cart.
-The last thing you hear is the sound of something dragging itself away through the wall.
--> END
+-> death_hall_shape
 - else:
 HEALTH: {health}/3
 You stagger back into the hallway.
@@ -354,18 +544,32 @@ You stagger back into the hallway.
 }
 
 === mural_room ===
-You follow the faded handprints into a side room with a low ceiling and a cracked half-door.
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
+{
+- visited_mural_room == true:
+    You duck back into the low mural room.
 
-This room is different from the others.
-The chairs are too low.
-The wall mural shows a bright paper sun, trees, a tall fence, and a dark shape in the sky above it.
+    The paper sun, tilted stars, and fence drawing feel more deliberate now than they did at first glance.
+    {found_small_passage == true:
+    The low service hatch behind the cubbies still hangs open where you forced it.
+    }
+- else:
+    ~ visited_mural_room = true
+    You follow the faded handprints into a side room with a low ceiling and a cracked half-door.
 
-A mobile made of painted stars hangs crookedly over a reading mat gone gray with dust.
+    This room is different from the others.
+    The chairs are too low.
+    The wall mural shows a bright paper sun, trees, a tall fence, and a dark shape in the sky above it.
 
-{found_mural == false:
-~ found_mural = true
-On one wall, someone drew the facility from outside in thick crayon lines.
-The fence is taller than anything else in the picture.
+    A mobile made of painted stars hangs crookedly over a reading mat gone gray with dust.
+
+    {found_mural == false:
+    ~ found_mural = true
+    On one wall, someone drew the facility from outside in thick crayon lines.
+    The fence is taller than anything else in the picture.
+    }
 }
 
 HEALTH: {health}/3
@@ -380,10 +584,10 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Look at the crayon drawings more closely] -> mural_drawings
 {found_small_passage == false:
 + [Crawl through the low service hatch behind the cubbies] -> small_passage
 }
+* [Look at the crayon drawings more closely] -> mural_drawings
 + [Return to the hallway] -> hall_a
 
 === mural_drawings ===
@@ -414,14 +618,25 @@ The hatch lets you out behind a stack of broken supply bins in Storage.
 -> storage
 
 === observation ===
-You enter Observation.
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
+{
+- visited_observation == true:
+    You return to Observation.
 
-One wall is made of thick glass, but the room beyond it is too dark to see clearly.
-Old monitors display static.
-A recorder on the desk is still blinking with power.
+    The dark glass, dead monitors, and half-open vent look exactly as abandoned as before.
+- else:
+    ~ visited_observation = true
+    You enter Observation.
 
-There is a side door marked ARCHIVE.
-There is also a maintenance vent hanging partly open near the floor.
+    One wall is made of thick glass, but the room beyond it is too dark to see clearly.
+    Old monitors display static.
+    A recorder on the desk is still blinking with power.
+
+    There is a side door marked ARCHIVE.
+    There is also a maintenance vent hanging partly open near the floor.
+}
 
 HEALTH: {health}/3
 AMMO: {bullets}/5
@@ -435,8 +650,8 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Play the recorder] -> recorder
-+ [Search the desk] -> obs_desk
+* [Play the recorder] -> recorder
+* [Search the desk] -> obs_desk
 + [Open the ARCHIVE door] -> archive_room
 + [Crawl into the maintenance vent] -> vent_path
 + [Return to the hallway] -> hall_a
@@ -482,11 +697,11 @@ At the far end, a glass specimen cylinder has cracked down one side and leaked a
 
 {
 - archive_creature_revealed == false and killed_archive_creature == false and archive_creature_fled == false:
-    Somewhere between the shelves, something breathes through a throat that does not work right.
+    Somewhere between the shelves, something keeps trying to draw breath through a damaged throat.
 - killed_archive_creature == true:
-    A gray, twisted body lies crumpled between two cabinets where you dropped it.
+    A pale, wire-limbed body lies crumpled between two cabinets where you dropped it.
 - archive_creature_fled == true:
-    A streak of black fluid disappears beneath the lowest cabinet.
+    A thin black line disappears beneath the lowest cabinet.
     Whatever was here withdrew deeper into the archive.
 }
 
@@ -508,10 +723,10 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Search the general records] -> archive_files
 {player_id == "0023" and saw_subject_file == false:
 + [Open the file marked SUBJECT 23] -> subject_file
 }
+* [Search the general records] -> archive_files
 + [Move between the shelves] -> archive_creature
 + [Return to Observation] -> observation
 
@@ -568,18 +783,18 @@ Your fingers tighten around the paper before you force yourself to set it back.
     ~ archive_creature_revealed = true
     You step between the shelves.
 
-    A shape unfolds from the gap between two file cabinets.
+    A shape eases itself out of the gap between two file cabinets, using the metal like rails.
     Its torso is narrow as wire, but its shoulders scrape both sides at once.
     One eye is sealed shut with scar tissue.
-    The other stares at you without blinking.
+    The other fixes on you as if it has already sorted you.
     - else:
-    The archive creature is still wedged between the cabinets, breathing in wet little clicks.
+    The archive creature is still threaded between the cabinets, breathing in dry little clicks.
     }
 
-    * [Shoot it] -> archive_shoot
     {player_id == "0023":
     * [Stand still and let it come close] -> archive_attuned
     }
+    * [Shoot it] -> archive_shoot
     + [Back away] -> archive_room
 }
 
@@ -595,7 +810,7 @@ The creature jerks toward you.
 You fire once into the narrow aisle.
 
 The report is deafening in the close room.
-The creature slams into the cabinets, rattles them end to end, then collapses in a tangle of limbs and records.
+The creature slams through the cabinets, rattling them end to end, then collapses in a spill of limbs and records.
 
 AMMO: {bullets}/5
 
@@ -618,8 +833,8 @@ The creature launches itself down the aisle.
 === archive_attuned ===
 You do not raise your hands.
 
-The creature edges closer.
-It leans in until the side of its face almost touches your wristband.
+The creature approaches without hurry.
+It tilts the good side of its face toward your wristband, as if reading it by touch.
 Then it recoils all at once, folding backward into the shadows beneath the shelves.
 
 ~ archive_creature_fled = true
@@ -629,17 +844,15 @@ The room goes still again.
 -> archive_room
 
 === archive_attack ===
-The creature crashes into you between the cabinets.
+The creature hits you between the cabinets before you can turn.
 
-Cold fingers hook into your shoulder and drag down hard before you wrench free.
+Cold fingers hook into your shoulder and pull downward with steady, deliberate force before you wrench free.
 
 ~ health = health - 1
 ~ archive_creature_fled = true
 
 {health <= 0:
-You fall into the open drawers.
-The archive shuts around you in a storm of paper and clicking breath.
--> END
+-> death_archive
 - else:
 HEALTH: {health}/3
 You stumble out of the archive and slam the door half-shut behind you.
@@ -673,14 +886,18 @@ The room is cramped and full of medical waste bins, file boxes, and supply crate
 {
 - killed_specimen == true:
     A reinforced door leads back into the main facility.
-    The locker you opened earlier is hanging wide, and the thing you shot lies twisted in front of it.
+    The locker you opened earlier is hanging wide, and what was inside lies spilled in front of it.
 - locker_wounded == true:
     A reinforced door leads back into the main facility.
     The locker door is bent outward, and dark fluid has dried across its vent slits.
-    Something inside still twitches now and then.
+    Something inside keeps redistributing its weight.
+- locker_revealed == true:
+    A reinforced door leads back into the main facility.
+    One locker now stands slightly ajar.
+    Something inside has not decided whether to come out.
 - else:
     A reinforced door leads back into the main facility.
-    Something knocks softly from inside one of the metal lockers.
+    One locker answers the room with a soft tap from the inside.
 }
 
 HEALTH: {health}/3
@@ -695,7 +912,7 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Search the supply crates] -> storage_crates
+* [Search the supply crates] -> storage_crates
 + [Open the locker] -> locker_creature
 + [Leave through the reinforced door] -> generator_hall
 
@@ -732,28 +949,38 @@ AMMO: {bullets}/5
 - killed_specimen == true:
     You look into the locker.
 
-    The corpse is still folded in the same wrong shape, half in and half out.
-    One long arm lies across the floor where it finally stopped moving.
+    The corpse is still jammed half in and half out.
+    One arm lies across the floor, too long for the compartment that held it.
 
     + [Back away] -> storage
 
 - locker_wounded == true:
     You pull the locker wider.
 
-    The same gray creature is crouched inside, one side of its face torn and slick with black blood.
-    It twitches toward you, but slower now.
+    The same gray creature is packed inside, one side of its face torn open and dark with blood.
+    It adjusts toward you, but slower now.
 
     + [Finish it] -> locker_finish
     + [Back away slowly] -> storage
 
+- locker_revealed == true:
+    You pull the same locker open again.
+
+    The collapsed creature is still packed inside, watching from the dark gap between the door and frame.
+    Its jaw works once on a hinge you do not trust.
+
+    * [Shoot it] -> locker_shoot
+    + [Back away slowly and leave it] -> storage
+
 - else:
+    ~ locker_revealed = true
     You open the locker.
 
-    A collapsed figure spills out onto the floor.
-    Its skin is gray and wet-looking, stretched tightly over a body that seems too long for its joints.
-    Its jaw opens sideways.
+    A collapsed figure tips partway out onto the floor.
+    Its limbs seem packed into the locker in the wrong order.
+    Its mouth opens along one side first.
 
-    It twitches but has not fully noticed you yet.
+    It has not fully decided to unfold.
 
     * [Shoot it] -> locker_shoot
     + [Back away slowly and leave it] -> storage
@@ -762,7 +989,7 @@ AMMO: {bullets}/5
 === locker_finish ===
 {found_gun == false:
 You have no gun.
-The creature unfolds itself toward you.
+The creature unpacks itself toward you.
 -> locker_attack
 - else:
 {bullets > 0:
@@ -771,7 +998,7 @@ The creature unfolds itself toward you.
 ~ locker_wounded = false
 You fire directly into its head.
 
-This time it only jerks once.
+This time it only answers once.
 The locker door rings softly when its body hits the metal.
 
 AMMO: {bullets}/5
@@ -795,7 +1022,7 @@ The creature lunges.
 === locker_shoot ===
 {found_gun == false:
 You have no gun.
-The creature unfolds itself toward you.
+The creature unpacks itself toward you.
 -> locker_attack
 - else:
 {bullets > 0:
@@ -803,7 +1030,7 @@ The creature unfolds itself toward you.
 ~ killed_specimen = true
 ~ locker_wounded = false
 You fire directly into its head.
-It spasms violently, slams against the lockers, then collapses still.
+It convulses against the locker wall, then empties out onto the floor.
 
 AMMO: {bullets}/5
 
@@ -824,16 +1051,14 @@ The creature lunges.
 }
 
 === locker_attack ===
-The creature crashes into you in the narrow room.
-Its fingers feel like surgical wire.
+The creature hits you at chest height in the cramped room.
+Its fingers close like loops of surgical wire.
 
 ~ health = health - 1
 ~ locker_wounded = true
 
 {health <= 0:
-You scream once.
-The storage room swallows the sound.
--> END
+-> death_locker
 - else:
 HEALTH: {health}/3
 You shove it back and stumble through the reinforced door.
@@ -845,6 +1070,10 @@ You shove it back and stumble through the reinforced door.
 -> faceless_release
 }
 
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
+
 You enter the Testing wing.
 
 Rows of glass chambers line the walls.
@@ -853,12 +1082,14 @@ Most are shattered from the inside.
 {
 - killed_faceless == true:
     Broken glass litters the floor around the once-intact chamber.
-    The pale faceless thing lies crumpled beside it, one hand still pressed against a shard.
+    The faceless chamber thing lies crumpled beside it, one hand still pressed to a shard as if it stopped mid-motion.
 - faceless_gone == true:
     The once-intact chamber now stands open and empty.
-    Long smears run down the inside of the glass where something pulled itself out.
+    Long hand-shaped streaks run down the inside of the glass where something taught itself how to leave.
 - else:
-    Inside one intact chamber, something pale and faceless presses both hands against the glass and watches you without blinking.
+    Inside one intact chamber, a pale figure rests both hands against the glass.
+    Its face is smooth where features should begin.
+    It watches you with perfect stillness.
 }
 
 At the end of the hall is LAB 3.
@@ -903,7 +1134,8 @@ A line races across the glass.
 
 Then the whole front panel bursts outward.
 
-A pale faceless thing spills across the floor on all fours, rises too quickly, and turns toward you.
+The chamber thing spills out on hands and feet, catches itself, and stands in one fast correction.
+Its blank head tilts toward you as if checking whether you are where it expected.
 
 HEALTH: {health}/3
 AMMO: {bullets}/5
@@ -924,7 +1156,7 @@ AMMO: {bullets}/5
 === faceless_shoot ===
 {found_gun == false:
 You have no gun.
-The faceless thing rushes you soundlessly.
+The faceless thing closes the distance without making a sound.
 -> faceless_attack
 - else:
 {bullets > 0:
@@ -932,7 +1164,7 @@ The faceless thing rushes you soundlessly.
 ~ killed_faceless = true
 You fire into the center of its chest.
 
-The thing folds in half the wrong way, hits the ground hard, and keeps moving for one blind second before it finally stops.
+It buckles sharply at the middle, hits the floor, and still tries once to rise before the motion leaves it.
 
 AMMO: {bullets}/5
 
@@ -955,8 +1187,10 @@ The faceless thing launches toward you.
 === faceless_hide ===
 You dive between two shattered chambers and flatten yourself against cold glass.
 
-The faceless thing passes close enough that you hear its breathing inside its body.
-Then it glides away down a dark side duct passage you did not notice before.
+The faceless thing passes close enough that you hear its breathing somewhere under the skin.
+It does not look directly at you.
+It only slows, head angled, as if listening through the rows of glass.
+Then it slips away down a dark service passage you did not notice before.
 
 ~ faceless_gone = true
 -> testing_hall
@@ -964,14 +1198,14 @@ Then it glides away down a dark side duct passage you did not notice before.
 === faceless_lab_run ===
 You turn and sprint for Lab 3.
 
-The faceless thing catches your back with cold fingers as you reach the doorway, but the frame clips its shoulder and throws it off balance.
+As you reach the doorway, the faceless thing catches between your shoulders with cold, precise fingers.
+The frame catches its shoulder and knocks it sideways before it can settle its grip.
 
 ~ health = health - 1
 ~ faceless_gone = true
 
 {health <= 0:
-You fall into Lab 3 and never get back up.
--> END
+-> death_faceless_lab
 - else:
 HEALTH: {health}/3
 You slam yourself through the doorway and do not stop until you hit the far desk.
@@ -979,16 +1213,15 @@ You slam yourself through the doorway and do not stop until you hit the far desk
 }
 
 === faceless_attack ===
-The pale creature collides with you and knocks the air out of your lungs.
+The faceless creature hits you in a single clean movement and knocks the air out of your lungs.
 
-Its smooth face presses against yours for one impossible second before you wrench free.
+Its smooth face touches yours for one impossible second, like it is comparing shape to shape, before you wrench free.
 
 ~ health = health - 1
 ~ faceless_gone = true
 
 {health <= 0:
-You collapse beneath broken glass and cold weight.
--> END
+-> death_faceless_glass
 - else:
 HEALTH: {health}/3
 You stagger back down the hall as the creature slips away into darkness.
@@ -999,7 +1232,8 @@ You stagger back down the hall as the creature slips away into darkness.
 You slip between two cracked observation pods and wait.
 
 A tall shape glides past the hall entrance.
-It has no eyes that you can see, but its head turns slowly as if listening to the air.
+No eyes show on the front of its head.
+It turns slowly anyway, as if the glass around you is making enough noise.
 
 After several seconds, it moves on.
 
@@ -1007,12 +1241,20 @@ You exhale.
 -> testing_hall
 
 === lab3 ===
-Lab 3 looks like it was abandoned during surgery.
+{
+- visited_lab3 == true:
+    You step back into Lab 3.
 
-Tools are laid out neatly beside restraints bolted into a reclining chair.
-The overhead lamp still works, but it pulses weakly.
-A terminal on the wall shows a repeated error message.
-A corpse in a lab coat is folded beneath the desk.
+    The restraints, the weak terminal glow, and the body under the desk feel even colder the second time.
+- else:
+    ~ visited_lab3 = true
+    Lab 3 looks like it was abandoned during surgery.
+
+    Tools are laid out neatly beside restraints bolted into a reclining chair.
+    The overhead lamp still works, but it pulses weakly.
+    A terminal on the wall shows a repeated error message.
+    A corpse in a lab coat is folded beneath the desk.
+}
 
 HEALTH: {health}/3
 AMMO: {bullets}/5
@@ -1026,8 +1268,8 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Search the corpse] -> corpse_lab
-+ [Use the terminal] -> terminal_lab
+* [Search the corpse] -> corpse_lab
+* [Use the terminal] -> terminal_lab
 + [Return to Testing] -> testing_hall
 
 === corpse_lab ===
@@ -1069,27 +1311,36 @@ A backup generator sits in the corner with a manual start lever.
 
 {
 - killed_nest == true:
-    Dark blood dries around the vent above the generator.
-    Whatever nested there is dead now.
+    Dark fluid has dried in thin trails beneath the vent above the generator.
+    What nested there hangs partway out of the opening, emptied of tension.
 - nest_wounded == true:
-    Something shifts weakly inside the vent above the generator.
-    Dark fluid beads at the edge and drips onto the floor.
+    Something keeps worrying at the metal from inside the vent above the generator.
+    Dark fluid beads along the grille and drops at uneven intervals.
 - else:
-    Something has nested in the ceiling above the generator.
+    Something has rooted itself into the vent above the generator.
 
-    You hear dripping.
-    Then a string of saliva lands on the floor.
+    A pale thread lowers from the grille, trembles in the air, then draws back up out of sight.
 }
 
 {
 - killed_nest == true:
     + [Return to Testing] -> testing_hall
 - nest_wounded == true:
-    + [Shoot into the vent] -> finish_nest
+    {found_gun == true:
+        {bullets > 0:
+        + [Shoot into the vent] -> finish_nest
+        - else:
+            {tried_empty_nest_finish == false:
+            * [Try to shoot into the vent] -> finish_nest
+            }
+        }
+    }
     + [Retreat] -> testing_hall
 - else:
-    * [Start the generator quietly] -> start_generator_quiet
+    {found_gun == true and bullets > 0:
     * [Shoot the thing in the ceiling] -> shoot_ceiling
+    }
+    * [Start the generator quietly] -> start_generator_quiet
     + [Retreat] -> testing_hall
 }
 === finish_nest ===
@@ -1104,7 +1355,7 @@ That is not going to help.
 ~ nest_wounded = false
 You fire into the vent.
 
-Something thrashes once above you, then slides halfway out and hangs still.
+Something beats once against the metal above you, then slips halfway out and hangs there, unfinished and still.
 
 AMMO: {bullets}/5
 
@@ -1118,6 +1369,7 @@ AMMO: {bullets}/5
 }
 -> power_control
 - else:
+~ tried_empty_nest_finish = true
 The gun clicks dry.
 The thing in the vent scrapes farther back into the dark.
 -> power_control
@@ -1129,7 +1381,7 @@ You move slowly to the lever.
 
 You start to pull it, but the machine shrieks to life with a metallic roar.
 
-The thing above drops instantly.
+The thing in the vent lets go at once.
 
 -> ceiling_attack
 
@@ -1147,7 +1399,8 @@ Bad instinct.
 You fire into the ceiling nest.
 
 A shriek explodes through the room.
-The creature drops half-formed and thrashes on the ground until it stops moving.
+The thing loses its hold and drops beside the generator in a loose, half-made heap.
+It claws once for the wall, then stops.
 You pull the backup lever.
 Power returns to part of the facility.
 
@@ -1179,9 +1432,10 @@ The nest bursts open.
 }
 
 === ceiling_attack ===
-A slick, malformed creature drops onto you from above.
+A half-made thing drops onto you from the vent above.
 
-You manage to wrench free, but its claws rake across your shoulder and back.
+It moves with brutal certainty in the space between ceiling and floor, all grasping limbs and sudden weight.
+You wrench free, but its hooked limbs rake across your shoulder and back.
 
 ~ health = health - 1
 ~ power_on = true
@@ -1197,8 +1451,7 @@ A hidden speaker spits one broken sentence into the room:
 }
 
 {health <= 0:
-You collapse beside the generator as the emergency lights hum back to life.
--> END
+-> death_backup_feed
 - else:
 HEALTH: {health}/3
 The power comes on as the creature retreats into the vents.
@@ -1206,21 +1459,27 @@ The power comes on as the creature retreats into the vents.
 }
 
 === security_door ===
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
+
 You reach Security.
 
 A reinforced shutter blocks the entrance.
 There is a card reader beside it.
 
 {keycard_a == false:
-You need better clearance.
--> hall_a
+The reader stays red.
+You need ACCESS CARD A before this door will open.
++ [Return to the hallway] -> hall_a
 - else:
 The reader flashes yellow.
 CARD A ACCEPTED.
 ADDITIONAL CLEARANCE REQUIRED.
 {keycard_b == false:
 Still locked.
--> hall_a
+You need ACCESS CARD B as well.
++ [Return to the hallway] -> hall_a
 - else:
 The shutter grinds open.
 -> security_room
@@ -1228,8 +1487,20 @@ The shutter grinds open.
 }
 
 === security_room ===
-The Security room is dim and lined with dead monitors.
-A few still work, each showing different corridors from around the facility.
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
+
+{
+- visited_security_room == true:
+    You step back into Security.
+
+    The dead monitors cast the same weak light over the safe, locker, and floor.
+- else:
+    ~ visited_security_room = true
+    The Security room is dim and lined with dead monitors.
+    A few still work, each showing different corridors from around the facility.
+}
 
 { killed_stalker == true:
 One monitor still shows EXIT PROCESSING.
@@ -1255,8 +1526,8 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Check the wall locker] -> security_locker
-+ [Check the desk safe] -> desk_safe
+* [Check the wall locker] -> security_locker
+* [Check the desk safe] -> desk_safe
 + [Go to Exit Processing] -> exit_processing
 + [Return to hallway] -> hall_a
 
@@ -1320,12 +1591,29 @@ AMMO: {bullets}/5
 -> security_room
 
 === generator_hall ===
-You enter a service corridor beyond Storage.
+{
+- visited_generator_hall == true:
+    You return to the service corridor beyond Storage.
 
-Now that some power is back on, red emergency strips glow near the floor.
-The corridor leads toward a rear Security access door, and another direction toward Exit Processing.
+    {power_on == true:
+    The red emergency strips still glow near the floor, and the dark growths still web the walls.
+    - else:
+    The emergency strips along the floor are still dark, leaving the corridor mostly lit by weak spill light from Storage.
+    The dark growths still web the walls.
+    }
+- else:
+    ~ visited_generator_hall = true
+    You enter a service corridor beyond Storage.
 
-The walls here are covered in strange dark growths, like veins or roots beneath translucent skin.
+    {power_on == true:
+    Now that some power is back on, red emergency strips glow near the floor.
+    - else:
+    The emergency strips along the floor are dead here, leaving most of the corridor in shadow.
+    }
+    The corridor leads toward a rear Security access door, and another direction toward Exit Processing.
+
+    The walls here are covered in strange dark growths, like veins or roots beneath translucent skin.
+}
 
 HEALTH: {health}/3
 AMMO: {bullets}/5
@@ -1339,8 +1627,12 @@ AMMO: {bullets}/5
     ACCESS CARD B
 }
 
-+ [Follow the growths toward Exit Processing] -> exit_processing
+{keycard_a == false or keycard_b == false:
++ [Try the rear Security access] -> rear_security_access
+- else:
 + [Go toward rear Security access] -> rear_security_access
+}
++ [Follow the growths toward Exit Processing] -> exit_processing
 * [Hide in the service recess] -> hide_service
 + [Go back to Storage] -> storage
 
@@ -1353,7 +1645,7 @@ The red light above the frame stays solid.
 {keycard_a == false or keycard_b == false:
 The rear door needs the same clearance as the main one.
 It does not open.
--> generator_hall
++ [Go back down the corridor] -> generator_hall
 - else:
 The light shifts green.
 The lock disengages with a heavy clunk.
@@ -1364,8 +1656,9 @@ The lock disengages with a heavy clunk.
 You flatten yourself into a shallow maintenance recess.
 
 Something passes down the corridor:
-a tall, skeletal figure dragging one twisted leg.
-Its head turns too far.
+a tall figure moving with one side half a beat behind the other.
+One leg trails stiffly.
+Its head keeps adjusting in short, overcareful increments.
 It pauses near you.
 
 You do not move.
@@ -1376,22 +1669,30 @@ You remain unseen.
 -> generator_hall
 
 === exit_processing ===
-You enter Exit Processing.
+{
+- visited_exit_processing == true:
+    You enter Exit Processing again.
 
-This room must once have been the final checkpoint before leaving the facility.
-Decontamination arches line the walls.
-A large rolling shutter at the far end leads outside.
+    The decontamination arches and shutter are unchanged, but the room feels more awake than before.
+- else:
+    ~ visited_exit_processing = true
+    You enter Exit Processing.
 
-But the floor is covered in pulsating organic mass.
-The growths from the corridor all lead here.
-At the center is a heaving mound of flesh and bone fused into the foundation.
+    This room must once have been the final checkpoint before leaving the facility.
+    Decontamination arches line the walls.
+    A large rolling shutter at the far end leads outside.
+
+    But the floor is covered in pulsating organic mass.
+    The growths from the corridor all lead here.
+    At the center, a heaving mass of tissue and white structural shapes has fused itself into the foundation.
+}
 
 {
 - killed_stalker == true:
     The guard creature lies collapsed beside the pulsing mass.
     Beyond it, the path to the furnace control panel is open.
 - else:
-    Something separates itself from the mass and stands upright.
+    One upright shape unhooks itself from the mass and takes its place between you and the control path.
 }
 
 HEALTH: {health}/3
@@ -1419,7 +1720,7 @@ You keep low behind an overturned decontamination cart.
 
 You watch the room carefully.
 
-The guard creature patrols in short, twitching movements.
+The guard creature moves in clipped, deliberate circuits, like a checkpoint routine still running without staff.
 Behind the root mass, you spot a furnace control panel set into the wall.
 A label beneath it reads:
 PURGE CHAMBER
@@ -1430,7 +1731,7 @@ If the root lives, the facility is not really escaped.
 === fight_guard ===
 The guard creature notices you instantly.
 
-Its chest opens along a seam that should not exist.
+Its chest parts along a narrow seam with the neatness of a door.
 
 + [Shoot it] -> shoot_guard
 + [Try to dodge past it] -> dodge_guard
@@ -1438,14 +1739,14 @@ Its chest opens along a seam that should not exist.
 === shoot_guard ===
 {found_gun == false:
 You have no gun.
-The creature rushes you.
+The guard creature closes the gap before you can move.
 -> guard_hit
 - else:
 {bullets > 0:
 ~ bullets = bullets - 1
 ~ killed_stalker = true
 You fire into the opening in its chest.
-It jerks backward, spasms, and collapses in a heap of twitching limbs.
+It recoils as if you struck something functional, then collapses beside the root in a hard rattle of limbs.
 
 AMMO: {bullets}/5
 
@@ -1467,7 +1768,7 @@ The gun is empty.
 === dodge_guard ===
 You try to slip around it.
 
-Its arm lashes out and catches your side like a hooked blade.
+Its arm shoots across the gap with the efficiency of a closing gate and catches your side.
 
 -> guard_hit
 
@@ -1475,12 +1776,10 @@ Its arm lashes out and catches your side like a hooked blade.
 ~ health = health - 1
 
 {health <= 0:
-The creature drags you into the living mass.
-You do not come back out.
--> END
+-> death_root_taken
 - else:
 HEALTH: {health}/3
-You stagger back across the room.
+You stagger back across the room while the root shifts behind it in slow approval.
 -> exit_processing
 }
 
@@ -1495,7 +1794,8 @@ The shutter to the outside is only a short distance beyond it.
 * [Touch the root mass] -> root_communion
 }
 + [Open the shutter and escape now] -> ending_escape_bad
-+ [Trigger the purge furnace] -> purge_choice
++ [Trigger the purge furnace, then run] -> ending_escape_mid
++ [Trigger the purge furnace and stay until it is done] -> true_ending
 + [Back away and return to Security] -> security_room
 
 === root_communion ===
@@ -1506,7 +1806,7 @@ You step closer and place a hand against the outer layer of the root.
 It is warm.
 Not like flesh.
 Warmer.
-Like something deeper under the world pressing up through it.
+Like a deeper system pressing up through the floor.
 
 The mass shudders.
 
@@ -1519,27 +1819,9 @@ and another voice answering,
 
 Then the vision snaps away.
 
-The root withdraws from your hand as if recognizing you.
+The root draws back from your hand as if identification is complete.
 
 -> root_final
-
-=== purge_choice ===
-{power_on == false:
-The purge controls are dead.
-You need facility power first.
-
-+ [Return to the root chamber] -> root_final
-+ [Go back and find a way to restore power] -> security_room
-- else:
-You slam your palm onto the furnace control.
-Warning alarms begin to pulse red across the room.
-
-The root mass starts convulsing violently.
-A side furnace hatch opens and the chamber begins to ignite.
-
-* [Stay long enough to make sure it burns] -> true_ending
-* [Run immediately for the shutter] -> ending_escape_mid
-}
 
 === ending_escape_bad ===
 You force open the shutter and stumble outside into cold night air.
@@ -1552,14 +1834,21 @@ mist under floodlights.
 You are out.
 
 But behind you, deep inside the structure, the root still lives.
-You hear one last wet impact against the inside of the shutter.
+You hear one last heavy impact against the inside of the shutter.
 
 -> outside_unburned
 
 === ending_escape_mid ===
+{power_on == false:
+The purge controls are dead.
+You need facility power first.
+
++ [Return to the root chamber] -> root_final
++ [Go back and find a way to restore power] -> security_room
+- else:
 ~ burned_clean = false
 
-You run as the furnace ignites behind you.
+You slam the furnace control and run.
 
 The facility shakes.
 Smoke and sparks flood Exit Processing.
@@ -1572,8 +1861,16 @@ Maybe enough died.
 Maybe not.
 
 -> outside_burned
+}
 
 === true_ending ===
+{power_on == false:
+The purge controls are dead.
+You need facility power first.
+
++ [Return to the root chamber] -> root_final
++ [Go back and find a way to restore power] -> security_room
+- else:
 ~ burned_clean = true
 
 You stay at the controls and watch.
@@ -1594,6 +1891,7 @@ But the thing below is dead.
 Truly dead.
 
 -> outside_burned
+}
 
 === outside_unburned ===
 {
@@ -1610,24 +1908,80 @@ You stand outside the facility, breathing steam into the cold.
 
 Floodlights wash the fence in pale yellow.
 The pine woods beyond it look close enough to touch and impossibly far away.
+{saw_perimeter_shed == true:
+The utility shed door still hangs partly open beside the service road.
+- else:
+A squat utility shed leans beside the service road.
+}
 
 Behind you, something hits the inside of the shutter again.
 
-+ [Run toward the woods] -> woods_blocked_0001
++ [Search the utility shed] -> perimeter_shed_0001
+* [Stand in the open and wave toward the floodlights] -> death_searchlight_fixed
+* [Stay near the shutter and listen] -> death_shutter_claimed
 * [Try to climb the fence] -> sniper_death
 + [Go back inside and finish it] -> return_inside_0001
 
-=== woods_blocked_0001 ===
-You run toward the tree line.
+=== perimeter_shed_0001 ===
+{
+- saw_perimeter_shed == true:
+    You return to the utility shed.
 
-The fence cuts across the whole perimeter, taller than it looked from the shutter.
-Razor wire glints at the top.
-There is no easy way through it.
+    The emergency phone hangs beside the wall where you left it.
+    The runoff schematic is still pinned in place above the half-hidden hatch.
+- else:
+    ~ saw_perimeter_shed = true
+    The shed door sticks before it gives.
 
-Behind you, the facility groans wetly in the dark.
+    Inside: a rusted emergency phone, runoff schematics pinned to the wall, and a maintenance hatch half hidden beneath a tarp.
 
-+ [Go back to the service road] -> outside_unburned_0001
-* [Try to climb the fence anyway] -> sniper_death
+    The map shows a drainage trench running beneath the outer fence toward the pines.
+}
+
+* [Follow the runoff trench] -> ending_0001_runoff
+* [Use the emergency phone] -> ending_0001_detained
++ [Return to the road] -> outside_unburned_0001
+
+=== ending_0001_runoff ===
+You wrench up the hatch and drop into freezing runoff water.
+
+The trench is narrow, dark, and lined with slime.
+You crawl because there is no room to do anything else.
+
+Above you, the fence hums.
+Behind you, something in the facility hits metal hard enough to shake dirt loose into your hair.
+
+At last the trench widens.
+You drag yourself out into a drainage ditch beyond the perimeter and lie there in the wet pine needles, shaking and alive.
+
+You never see the facility clearly again.
+Only the glow of its floodlights through the trees, growing smaller as you keep walking.
+
+ENDING: THROUGH THE RUNOFF
+-> END
+
+=== ending_0001_detained ===
+You lift the emergency phone and force it to life.
+
+Static crackles.
+Then a calm male voice answers almost immediately, as if someone was waiting beside the line.
+
+"State your clearance."
+
+"I don't have one," you say. "I just got out."
+
+Silence.
+Then:
+"Stay where you are. Hands visible."
+
+A perimeter truck arrives before anything else can come out of the building.
+They search you, photograph the wristband, and put you in the back without explaining where you are going.
+
+It is not rescue.
+But it is out.
+
+ENDING: HELD FOR DEBRIEF
+-> END
 
 === return_inside_0001 ===
 You turn and duck back under the half-raised shutter before it can slam all the way down.
@@ -1647,20 +2001,78 @@ The woods beyond them sway in the dark like they are waiting for something.
 
 Behind you, the shutter jumps once from a heavy impact inside.
 
-+ [Run toward the woods] -> woods_blocked_0012
+{found_mural == true:
+You cannot stop thinking about the drawing:
+the fence,
+the dark shape in the sky,
+and the small mark low near the edge of the wall.
+}
+
++ [Follow the wall and look low along the fence line] -> low_gap_0012
+* [Call out toward the floodlights] -> ending_0012_quarantine
+* [Stay close to the shutter and listen] -> death_shutter_claimed
 * [Try to climb the fence] -> sniper_death
 + [Go back inside and finish it] -> return_inside_0012
 
-=== woods_blocked_0012 ===
-You hurry toward the pine line.
+=== low_gap_0012 ===
+{
+- saw_low_gap == true:
+    You return to the far corner of the perimeter wall.
 
-The fence rises in front of you all at once, all wire and steel and wet metal.
-It is much taller up close than it looked from the building.
+    The bent conduit pipe and broken mesh still hide the same narrow opening.
+- else:
+    ~ saw_low_gap = true
+    You move along the wall with one hand against the cold concrete.
 
-A warning light blinks somewhere high above you.
+    Near the far corner, behind a bent conduit pipe and a spill of dead weeds, you find it:
+    a runoff opening half covered by broken mesh,
+    small enough that an adult would never have looked twice.
 
-+ [Back away from the fence] -> outside_unburned_0012
-* [Try to climb it anyway] -> sniper_death
+    {found_mural == true:
+    It is exactly where the crayon line in the mural said it would be.
+    }
+}
+
+* [Crawl through] -> ending_0012_small_way
++ [Back away] -> outside_unburned_0012
+
+=== ending_0012_small_way ===
+You flatten yourself and crawl.
+
+Wet grit presses into your knees and elbows.
+Somewhere behind you the shutter bangs again, then something screams inside the building in a voice too ruined to still be human.
+
+You keep crawling.
+
+At last you slide out into cold brush beyond the fence.
+No spotlight finds you.
+No one calls your number.
+The trees take you in without a sound.
+
+ENDING: SMALL WAY OUT
+-> END
+
+=== ending_0012_quarantine ===
+You raise both hands and call once into the dark.
+
+For a few seconds nothing happens.
+Then one floodlight turns.
+Then another.
+
+A voice from a mounted speaker cuts through the night:
+"Remain visible. Do not approach the fence."
+
+A two-person perimeter team reaches you in sealed masks and thermal cloaks.
+One of them looks at the wristband and then at you for a little too long.
+
+They wrap you in a gray blanket and lead you toward a waiting transport van instead of the woods.
+
+You are leaving.
+You are not free.
+But you are alive.
+
+ENDING: QUARANTINED WITNESS
+-> END
 
 === return_inside_0012 ===
 You slip back beneath the shutter and into the heat and smoke.
@@ -1680,24 +2092,86 @@ Beyond it, the pines lean and sway together in the wind.
 
 For a second the pressure behind your eyes returns.
 Some part of you feels the root still moving below the floor.
+Not calling yet.
+Waiting.
 
-+ [Move toward the woods] -> woods_blocked_0023
-* [Try to climb the fence] -> sniper_death
+* [Step into the floodlight and let them see you] -> ending_0023_retrieved_early
+* [Tear off the wristband and wait near the road] -> ending_0023_false_early
++ [Follow the pressure along the fence line] -> ending_0023_rootmark
+* [Stand still and let the pressure deepen] -> death_root_recalled
 + [Go back inside] -> return_inside_0023
 
-=== woods_blocked_0023 ===
-You move toward the fence line.
+=== ending_0023_retrieved_early ===
+You step fully into the light.
 
-The farther you get from the shutter, the stronger the pressure in your skull becomes.
+It finds you too fast.
+Not searching.
+Recognizing.
+
+A mounted speaker crackles above the road.
+
+"Visual confirmation pending."
+Then, after a pause:
+"Visual confirmed. Subject Twenty-Three outside containment."
+
+A black transport truck arrives instead of a rescue helicopter.
+When the rear doors open, the people inside already know your number.
+
+No one asks if you are hurt.
+No one asks your name.
+
+ENDING: RECOVERED ASSET
+-> END
+
+=== ending_0023_false_early ===
+You rip the band free and bury it beneath ash and gravel with the toe of your bare foot.
+
+Then you wait in the edge of the light with your shoulders slumped and your eyes unfocused, like someone emptied out instead of escaped.
+
+When the perimeter vehicle arrives, the woman who steps out does not greet you.
+She studies your face.
+Then your bare wrist.
+Then the ruined building behind you.
+
+"One civilian survivor," she says into her radio.
+But she says it carefully.
+
+They take you anyway.
+
+ENDING: FALSE CIVILIAN
+-> END
+
+=== ending_0023_rootmark ===
+You follow the fence instead of the road.
+
+The farther you go, the stronger the pressure becomes.
 Not pain.
-Recognition.
+Orientation.
 
-The woods beyond the fence seem too still.
-As if they are listening.
+Behind a transformer box half sunk in gravel, you find a service culvert with its grate already bent outward.
+From inside comes warm air carrying the same mineral-organic smell as the root chamber below.
 
-+ [Go back to the service road] -> outside_unburned_0023
-* [Try to climb the fence anyway] -> sniper_death
-+ [Go back inside] -> return_inside_0023
+{touched_root == true:
+For one second your palm burns again with remembered heat.
+}
+
+* [Crawl through the culvert and keep going] -> ending_0023_rootmark_escape
++ [Back away from it] -> outside_unburned_0023
+
+=== ending_0023_rootmark_escape ===
+You lower yourself into the culvert and move toward the dark.
+
+It bends under the fence line and out toward the trees.
+By the time you emerge, the facility is behind you, half hidden by earth and concrete and distance.
+
+The pressure in your skull does not vanish.
+It only thins.
+
+Whatever tied you to the place is stretched now, not broken.
+But stretched is enough.
+
+ENDING: ROOTMARK ESCAPE
+-> END
 
 === return_inside_0023 ===
 You turn back toward the facility.
@@ -1707,15 +2181,195 @@ Inside, the root chamber waits with the dead guard sprawled beside it, as if it 
 
 -> root_final
 
+=== death_hall_swarm ===
+You lose your footing between the wheelchairs.
+
+One of them hits you high.
+Another takes your legs out from under you.
+The corridor fills all at once with elbows, teeth, hospital fabric, and flickering fluorescent light.
+
+You never see which mouth reaches your throat.
+Only the ceiling stuttering white above you as the whole ward finally comes alive.
+
+ENDING: HALL CONSUMED
+-> END
+
+=== death_hall_shape ===
+You crumple beside the dented cart.
+
+The wounded thing does not flee this time.
+It catches your gown and works you toward the broken wall panel in short, efficient pulls.
+
+By the time the sound stops, the alcove is empty again.
+Only the cart is left vibrating beside the wall.
+
+ENDING: INSIDE THE WALL
+-> END
+
+=== death_archive ===
+You slam backward into the open drawers and cannot get your footing again.
+
+Folders burst around you.
+Paper sticks to your blood and skin.
+The creature keeps working itself through the narrow aisle as if the archive made the space for it.
+
+{
+- player_id == "0023" and saw_subject_file == true:
+    The drawer marked SUBJECT 23 hangs open beside your head as the cabinets begin to rattle shut.
+- else:
+    The cabinets begin to rattle shut one by one.
+}
+
+The room files you away in clicks and paper.
+
+ENDING: FILED AWAY
+-> END
+
+=== death_locker ===
+You hit the floor in front of the open locker and do not get back up.
+
+The thing closes over you in a rush of wire-thin fingers and stale locker air.
+Metal rings around your head as your shoulder strikes the steel again and again.
+
+When the noise stops, Storage goes quiet.
+The locker door swings once on its hinge, then settles.
+
+ENDING: LOCKER FEED
+-> END
+
+=== death_faceless_lab ===
+You make it through the Lab 3 doorway, but not far enough.
+
+The faceless thing drops on you among the restraints and scattered tools.
+The overhead lamp pulses weakly above its blank head, turning the whole room into a stop-start procedure.
+
+The room that studied separation closes around you like it has resumed.
+
+ENDING: LAB THRESHOLD
+-> END
+
+=== death_faceless_glass ===
+You collapse beneath broken glass and cold weight.
+
+The faceless thing pins you only long enough to take the air from your lungs.
+Its smooth face presses against yours without eyes, mouth, or any sign it ever needed them.
+
+When it finally lifts away, the shattered chamber stands open behind it.
+Whatever was kept behind glass is loose, and the hall is quiet again in a way it should not be.
+
+ENDING: GLASS RELEASE
+-> END
+
+=== death_backup_feed ===
+You hit the floor beside the generator as the emergency lights blink awake.
+
+The thing in the vent comes back down only long enough to finish feeding.
+Blood spreads beneath the start lever while the room brightens around you in clean industrial white.
+
+{
+- player_id == "0023":
+    Somewhere in the wall, the speaker keeps trying to return Subject Twenty-Three to Processing.
+- else:
+    The backup generator keeps running.
+}
+
+The power is back on.
+You are not.
+
+ENDING: BACKUP FEED
+-> END
+
+=== death_root_taken ===
+The guard creature catches you before you clear the chamber.
+
+Its grip closes like hooked steel.
+The living mass opens beneath it, not with a mouth but with recognition.
+
+Heat rolls over you.
+Voices move through the root in layered fragments, as if many people are trying to remember one sentence at once.
+
+{player_id == "0023":
+For one impossible second, the voices answer the number on your wristband before they take the rest of you.
+}
+
+Then you are pulled inside.
+
+ENDING: RETURNED TO ROOT
+-> END
+
+=== death_searchlight_fixed ===
+You step into the open and wave both arms toward the floodlights.
+
+For one hopeful second nothing happens.
+
+Then every light locks onto you at once.
+A voice barks from somewhere high above the fence:
+"DOWN. NOW."
+
+You freeze instead.
+
+The shot is precise enough to feel unreal.
+It punches through you and drops you flat onto the frozen pavement before the echo reaches the trees.
+
+The lights remain on you long after you stop moving.
+
+ENDING: FIXED IN THE LIGHT
+-> END
+
+=== death_shutter_claimed ===
+You stay too close to the half-open shutter.
+
+At first it is only heat and smoke and the heavy pounding from somewhere inside.
+Then something narrow pushes through the gap beneath the door, searching once before it finds your ankle.
+
+You hit the road hard.
+Your nails scrape sparks from the concrete as it reels you backward.
+
+The last thing you see is the orange glow of the outside shrinking into a thin line under the shutter before it slams shut.
+
+ENDING: CLAIMED BY WHAT REMAINED
+-> END
+
+=== death_root_recalled ===
+You stop resisting the pressure.
+
+It swells behind your eyes until the road, the fence, the trees, and the floodlights all feel secondary to a single certainty:
+you are facing the wrong direction.
+
+You turn back toward the facility without meaning to.
+The shutter rises just enough.
+
+Inside, something waiting in the smoke shifts like a body welcoming back a missing part.
+
+ENDING: RECALLED
+-> END
+
+=== death_return_too_late ===
+You duck back inside after the fire has already taken too much.
+
+The corridor beyond the shutter is no longer a corridor.
+It is smoke, falling metal, and the furnace roar traveling through concrete.
+
+You make it three steps before the ceiling gives way.
+
+The facility seals its own mouth over you.
+
+ENDING: BURIED IN THE PURGE
+-> END
+
 === sniper_death ===
 You grab the fence and start to climb.
 
 For one savage second you think you might actually clear it.
+Cold wire bites into your palms.
+The floodlights pin you in place.
 
 Then a single rifle shot cracks through the night.
 
 The impact tears through you and throws you backward off the wire.
-You hit the ground hard beneath the floodlights and do not get up again.
+You hit the ground hard beneath the floodlights while something inside the facility slams once more against the shutter.
+
+No one comes to check if you are still moving.
 
 ENDING: PERIMETER DENIED
 -> END
@@ -1755,8 +2409,10 @@ The helicopter banks once, searchlight sweeping over the road and the burning bu
 
 You have only a moment before it commits to a landing.
 
-* [Run into the woods] -> ending_0001_woods
+* [Run for the damaged fence and the woods] -> ending_0001_woods
 * [Wait for the helicopter] -> ending_0001_heli
+* [Stay low beside the road until they commit elsewhere] -> ending_0001_low
+* [Run back toward the collapsing shutter] -> death_return_too_late
 
 === ending_0001_woods ===
 You run for the darkest stretch of trees before the helicopter can settle.
@@ -1791,13 +2447,36 @@ But you are alive.
 ENDING: EXTRACTED
 -> END
 
+=== ending_0001_low ===
+You drop beside the broken edge of the road and wait.
+
+The helicopter settles near the main service entrance instead of the breach.
+The team that exits runs toward the building first, not you.
+
+That is enough.
+
+You slip through the warped section of fence and into the pines while every eye is turned toward the fire.
+
+By dawn, the facility is only smoke behind you.
+
+ENDING: OUT OF RANGE
+-> END
+
 === outside_burned_0012 ===
 The helicopter lowers until its searchlight washes over the road, the fence, and the burning side of the building.
 
 The sound is too loud to think through.
 
+{burned_clean == true and found_mural == true:
+You suddenly know where the easiest part of the broken fence is before the light ever sweeps over it.
+}
+
+{burned_clean == true and found_mural == true:
+* [Follow the picture-memory to the bent fence section] -> ending_0012_picture_way
+}
 * [Run into the woods and hide] -> ending_0012_woods
 * [Wait for the helicopter] -> ending_0012_heli
+* [Run back toward the collapsing shutter] -> death_return_too_late
 
 === ending_0012_woods ===
 You run off the road and duck beneath a low spread of pine branches near the buckled stretch of fence.
@@ -1872,6 +2551,22 @@ You go with him toward the helicopter while sparks drift up behind the fence lik
 ENDING: LIFTED OUT
 -> END
 
+=== ending_0012_picture_way ===
+You move before the searchlight fully settles.
+
+Not toward the deepest woods.
+Toward the spot your mind already marked from the mural room:
+the low, awkward break where bent steel and ruined mesh leave just enough room.
+
+You slide through it sideways and tumble into wet brush on the far side.
+By the time the helicopter light reaches the gap, you are already below the rise of the ground and crawling through black pine roots.
+
+No one calls your number.
+No one follows.
+
+ENDING: THE DRAWING WAS RIGHT
+-> END
+
 === outside_burned_0023 ===
 The helicopter descends lower than it should.
 
@@ -1879,11 +2574,19 @@ Its searchlight sweeps across the road once, then snaps back onto you too quickl
 Not searching.
 Finding.
 
+{burned_clean == true and touched_root == true:
+For the first time since waking, the pressure behind your eyes weakens instead of deepening.
+- else:
 The pressure behind your eyes returns.
+}
 
+{burned_clean == true and touched_root == true:
+* [Wait until the pressure is completely gone, then move] -> ending_0023_severed
+}
 * [Step into the searchlight] -> ending_0023_light
 * [Run into the woods] -> ending_0023_woods
 * [Tear off or cover the wristband and wait] -> ending_0023_false
+* [Run back toward the collapsing shutter] -> death_return_too_late
 
 === ending_0023_light ===
 You step fully into the light.
@@ -1966,26 +2669,60 @@ Almost.
 ENDING: FALSE SURVIVOR
 -> END
 
+=== ending_0023_severed ===
+You do not move at first.
+
+You stand in the firelight and wait for the old pressure to return.
+For the pull.
+For the recognition.
+For the buried thing under the world to remember you.
+
+It does not.
+
+Little by little the feeling drains away until your skull is only your skull again, and your hand is only your hand.
+
+When the helicopter sweeps wide toward the facility, you turn and slip through the broken fence alone.
+
+Whatever the branch was tied to is gone now.
+If they come looking, they will be looking for something that no longer exists.
+
+ENDING: SEVERED
+-> END
+
 === lullaby_room ===
-~ heard_lullaby = true
+{hall_swarm_awake == true:
+~ hall_swarm_pending = true
+}
 
-You follow the melody to a half-open side room.
+{
+- visited_lullaby_room == true:
+    You return to the half-open sleep ward.
 
-A small speaker in the corner keeps trying to play the same lullaby from a warped internal loop.
-The room itself looks like a sleep ward that was shut in a hurry:
-low beds,
-folded blankets,
-a painted moon on one wall.
+    The speaker is still trapped in the same warped few notes.
+    Something thin remains tucked beneath the nearest bed frame, rocking in time.
+- else:
+    ~ visited_lullaby_room = true
 
-Something thin crouches beneath the nearest bed frame.
+    You follow the melody to a half-open side room.
 
-It does not rush you.
-It only rocks slightly in time with the broken melody.
+    A small speaker in the corner keeps trying to play the same lullaby from a warped internal loop.
+    The room itself looks like a sleep ward that was shut in a hurry:
+    low beds,
+    folded blankets,
+    a painted moon on one wall.
+
+    Something thin crouches beneath the nearest bed frame.
+
+    It does not rush you.
+    It only rocks slightly in time with the broken melody.
+}
 
 * [Stand still and listen until the song stops] -> lullaby_listen
-* [Back away quietly] -> hall_a
++ [Back away quietly] -> hall_a
 
 === lullaby_listen ===
+~ heard_lullaby = true
+
 You stay still.
 
 The melody skips, repeats, then finally dies in a burst of static.

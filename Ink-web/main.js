@@ -1,447 +1,542 @@
-(function(storyContent) {
+(function (global) {
+    "use strict";
 
-    // Create ink story from the content using inkjs
-    var story = new inkjs.Story(storyContent);
-    var storagePrefix = "ink-web:" + window.location.pathname.replace(/[^a-z0-9/_-]+/gi, "-");
-    var saveStateKey = storagePrefix + ":save-state";
-    var themeKey = storagePrefix + ":theme";
+    var STATUS_LINE_RE = /^(HEALTH:|AMMO:|ACCESS CARD(?:S)?:)/i;
+    var ENDING_LINE_RE = /^ENDING:\s*/i;
+    var MOTION_QUERY = global.matchMedia
+        ? global.matchMedia("(prefers-reduced-motion: no-preference)")
+        : null;
 
-    var savePoint = "";
+    var dom = {};
+    var state = {
+        story: null,
+        isAdvancing: false
+    };
 
-    let savedTheme;
-    let globalTagTheme;
-
-    // Global tags - those at the top of the ink file
-    // We support:
-    //  # theme: dark
-    //  # author: Your Name
-    var globalTags = story.globalTags;
-    if( globalTags ) {
-        for(var i=0; i<story.globalTags.length; i++) {
-            var globalTag = story.globalTags[i];
-            var splitTag = splitPropertyTag(globalTag);
-
-            // THEME: dark
-            if( splitTag && splitTag.property == "theme" ) {
-                globalTagTheme = splitTag.val;
-            }
-
-            // author: Your Name
-            else if( splitTag && splitTag.property == "author" ) {
-                var byline = document.querySelector('.byline');
-                byline.innerHTML = "by "+splitTag.val;
-            }
-        }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bootstrap);
+    } else {
+        bootstrap();
     }
 
-    var storyContainer = document.querySelector('#story');
-    var outerScrollContainer = document.querySelector('.outerContainer');
+    function bootstrap() {
+        cacheDom();
 
-    // page features setup
-    setupTheme(globalTagTheme);
-    var hasSave = loadSavePoint();
-    setupButtons(hasSave);
-
-    // Set initial save point
-    savePoint = story.state.toJson();
-
-    // Kick off the start of the story!
-    continueStory(true);
-
-    // Main story processing function. Each time this is called it generates
-    // all the next content up as far as the next set of choices.
-    function continueStory(firstTime) {
-
-        var paragraphIndex = 0;
-        var delay = 0.0;
-
-        // Don't over-scroll past new content
-        var previousBottomEdge = firstTime ? 0 : contentBottomEdgeY();
-
-        // Generate story text - loop through available content
-        while(story.canContinue) {
-
-            // Get ink to generate the next paragraph
-            var paragraphText = story.Continue();
-            var tags = story.currentTags;
-
-            // Any special tags included with this line
-            var customClasses = [];
-            for(var i=0; i<tags.length; i++) {
-                var tag = tags[i];
-
-                // Detect tags of the form "X: Y". Currently used for IMAGE and CLASS but could be
-                // customised to be used for other things too.
-                var splitTag = splitPropertyTag(tag);
-                var tagProperty = splitTag ? splitTag.property.toUpperCase() : null;
-
-                // AUDIO: src
-                if( splitTag && tagProperty == "AUDIO" ) {
-                  if('audio' in this) {
-                    this.audio.pause();
-                    this.audio.removeAttribute('src');
-                    this.audio.load();
-                  }
-                  this.audio = new Audio(splitTag.val);
-                  this.audio.play();
-                }
-
-                // AUDIOLOOP: src
-                else if( splitTag && tagProperty == "AUDIOLOOP" ) {
-                  if('audioLoop' in this) {
-                    this.audioLoop.pause();
-                    this.audioLoop.removeAttribute('src');
-                    this.audioLoop.load();
-                  }
-                  this.audioLoop = new Audio(splitTag.val);
-                  this.audioLoop.play();
-                  this.audioLoop.loop = true;
-                }
-
-                // IMAGE: src
-                if( splitTag && tagProperty == "IMAGE" ) {
-                    var imageElement = document.createElement('img');
-                    imageElement.src = splitTag.val;
-                    storyContainer.appendChild(imageElement);
-
-                    imageElement.onload = () => {
-                        console.log(`scrollingto ${previousBottomEdge}`)
-                        scrollDown(previousBottomEdge)
-                    }
-
-                    showAfter(delay, imageElement);
-                    delay += 200.0;
-                }
-
-                // LINK: url
-                else if( splitTag && tagProperty == "LINK" ) {
-                    window.location.href = splitTag.val;
-                }
-
-                // LINKOPEN: url
-                else if( splitTag && tagProperty == "LINKOPEN" ) {
-                    window.open(splitTag.val);
-                }
-
-                // BACKGROUND: src
-                else if( splitTag && tagProperty == "BACKGROUND" ) {
-                    outerScrollContainer.style.backgroundImage = 'url('+splitTag.val+')';
-                }
-
-                // CLASS: className
-                else if( splitTag && tagProperty == "CLASS" ) {
-                    customClasses.push(splitTag.val);
-                }
-
-                // CLEAR - removes all existing content.
-                // RESTART - clears everything and restarts the story from the beginning
-                else if( tag == "CLEAR" || tag == "RESTART" ) {
-                    removeAll("p");
-                    removeAll("img");
-
-                    // Comment out this line if you want to leave the header visible when clearing
-                    setVisible(".header", false);
-
-                    if( tag == "RESTART" ) {
-                        restart();
-                        return;
-                    }
-                }
-            }
-		
-		// Check if paragraphText is empty
-		if (paragraphText.trim().length == 0) {
-                continue; // Skip empty paragraphs
-		}
-
-            // Create paragraph element (initially hidden)
-            var paragraphElement = document.createElement('p');
-            paragraphElement.innerHTML = paragraphText;
-            storyContainer.appendChild(paragraphElement);
-
-            // Add any custom classes derived from ink tags
-            for(var i=0; i<customClasses.length; i++)
-                paragraphElement.classList.add(customClasses[i]);
-
-            // Fade in paragraph after a short delay
-            showAfter(delay, paragraphElement);
-            delay += 200.0;
-        }
-
-        // Create HTML choices from ink choices
-        story.currentChoices.forEach(function(choice) {
-
-            // Create paragraph with anchor element
-            var choiceTags = choice.tags;
-            var customClasses = [];
-            var isClickable = true;
-            for(var i=0; i<choiceTags.length; i++) {
-                var choiceTag = choiceTags[i];
-                var splitTag = splitPropertyTag(choiceTag);
-                var choiceTagProperty = splitTag ? splitTag.property.toUpperCase() : null;
-
-                if(choiceTag.toUpperCase() == "UNCLICKABLE"){
-                    isClickable = false
-                }
-
-                if( splitTag && choiceTagProperty == "CLASS" ) {
-                    customClasses.push(splitTag.val);
-                }
-
-            }
-
-            
-            var choiceParagraphElement = document.createElement('p');
-            choiceParagraphElement.classList.add("choice");
-
-            for(var i=0; i<customClasses.length; i++)
-                choiceParagraphElement.classList.add(customClasses[i]);
-
-            if(isClickable){
-                choiceParagraphElement.innerHTML = `<a href='#'>${choice.text}</a>`
-            }else{
-                choiceParagraphElement.innerHTML = `<span class='unclickable'>${choice.text}</span>`
-            }
-            storyContainer.appendChild(choiceParagraphElement);
-
-            // Fade choice in after a short delay
-            showAfter(delay, choiceParagraphElement);
-            delay += 200.0;
-
-            // Click on choice
-            if(isClickable){
-                var choiceAnchorEl = choiceParagraphElement.querySelectorAll("a")[0];
-                choiceAnchorEl.addEventListener("click", function(event) {
-
-                    // Don't follow <a> link
-                    event.preventDefault();
-
-                    // Extend height to fit
-                    // We do this manually so that removing elements and creating new ones doesn't
-                    // cause the height (and therefore scroll) to jump backwards temporarily.
-                    storyContainer.style.height = contentBottomEdgeY()+"px";
-
-                    // Remove all existing choices
-                    removeAll(".choice");
-
-                    // Tell the story where to go next
-                    story.ChooseChoiceIndex(choice.index);
-
-                    // This is where the save button will save from
-                    savePoint = story.state.toJson();
-
-                    // Aaand loop
-                    continueStory();
-                });
-            }
-        });
-
-		// Unset storyContainer's height, allowing it to resize itself
-		storyContainer.style.height = "";
-
-        if( !firstTime )
-            scrollDown(previousBottomEdge);
-
-    }
-
-    function restart() {
-        story.ResetState();
-
-        setVisible(".header", true);
-
-        // set save point to here
-        savePoint = story.state.toJson();
-
-        continueStory(true);
-
-        outerScrollContainer.scrollTo(0, 0);
-    }
-
-    // -----------------------------------
-    // Various Helper functions
-    // -----------------------------------
-
-    // Detects whether the user accepts animations
-    function isAnimationEnabled() {
-        return window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-    }
-
-    // Fades in an element after a specified delay
-    function showAfter(delay, el) {
-        if( isAnimationEnabled() ) {
-            el.classList.add("hide");
-            setTimeout(function() { el.classList.remove("hide") }, delay);
-        } else {
-            // If the user doesn't want animations, show immediately
-            el.classList.remove("hide");
-        }
-    }
-
-    // Scrolls the page down, but no further than the bottom edge of what you could
-    // see previously, so it doesn't go too far.
-    function scrollDown(previousBottomEdge) {
-        // If the user doesn't want animations, let them scroll manually
-        if ( !isAnimationEnabled() ) {
+        if (!global.inkjs || !global.storyContent) {
+            renderFatal("Ink runtime or compiled story data could not be loaded.");
             return;
         }
 
-        // Line up top of screen with the bottom of where the previous content ended
-        var target = previousBottomEdge;
+        bindControls();
+        restartStory({ scroll: false });
+    }
 
-        // Can't go further than the very bottom of the page
-        var limit = outerScrollContainer.scrollHeight - outerScrollContainer.clientHeight;
-        if( target > limit ) target = limit;
+    function cacheDom() {
+        dom.root = document.querySelector("[data-app]");
+        dom.sessionLabel = document.getElementById("sessionLabel");
+        dom.storyCredit = document.getElementById("storyCredit");
+        dom.sceneHeading = document.getElementById("sceneHeading");
+        dom.scene = document.getElementById("scene");
+        dom.choicesPanel = document.getElementById("choicesPanel");
+        dom.choicesHeading = document.getElementById("choicesHeading");
+        dom.choices = document.getElementById("choices");
+        dom.restartButton = document.getElementById("restartButton");
+        dom.endingPanel = document.getElementById("endingPanel");
+        dom.endingTitle = document.getElementById("endingTitle");
+        dom.endingSummary = document.getElementById("endingSummary");
+        dom.endingRestartButton = document.getElementById("endingRestartButton");
+        dom.playerCard = document.getElementById("playerCard");
+        dom.healthCard = document.getElementById("healthCard");
+        dom.ammoCard = document.getElementById("ammoCard");
+        dom.cardsCard = document.getElementById("cardsCard");
+        dom.statusPlayer = document.getElementById("statusPlayer");
+        dom.statusHealth = document.getElementById("statusHealth");
+        dom.statusAmmo = document.getElementById("statusAmmo");
+        dom.statusCards = document.getElementById("statusCards");
+    }
 
-        var start = outerScrollContainer.scrollTop;
-
-        var dist = target - start;
-        var duration = 300 + 300*dist/100;
-        var startTime = null;
-        function step(time) {
-            if( startTime == null ) startTime = time;
-            var t = (time-startTime) / duration;
-            var lerp = 3*t*t - 2*t*t*t; // ease in/out
-            outerScrollContainer.scrollTo(0, (1.0-lerp)*start + lerp*target);
-            if( t < 1 ) requestAnimationFrame(step);
+    function bindControls() {
+        if (dom.restartButton) {
+            dom.restartButton.addEventListener("click", function () {
+                restartStory();
+            });
         }
-        requestAnimationFrame(step);
-    }
 
-    // The Y coordinate of the bottom end of all the story content, used
-    // for growing the container, and deciding how far to scroll.
-    function contentBottomEdgeY() {
-        var bottomElement = storyContainer.lastElementChild;
-        return bottomElement ? bottomElement.offsetTop + bottomElement.offsetHeight : 0;
-    }
-
-    // Remove all elements that match the given selector. Used for removing choices after
-    // you've picked one, as well as for the CLEAR and RESTART tags.
-    function removeAll(selector)
-    {
-        var allElements = storyContainer.querySelectorAll(selector);
-        for(var i=0; i<allElements.length; i++) {
-            var el = allElements[i];
-            el.parentNode.removeChild(el);
-        }
-    }
-
-    // Used for hiding and showing the header when you CLEAR or RESTART the story respectively.
-    function setVisible(selector, visible)
-    {
-        var allElements = storyContainer.querySelectorAll(selector);
-        for(var i=0; i<allElements.length; i++) {
-            var el = allElements[i];
-            if( !visible )
-                el.classList.add("invisible");
-            else
-                el.classList.remove("invisible");
+        if (dom.endingRestartButton) {
+            dom.endingRestartButton.addEventListener("click", function () {
+                restartStory();
+            });
         }
     }
 
-    // Helper for parsing out tags of the form:
-    //  # PROPERTY: value
-    // e.g. IMAGE: source path
-    function splitPropertyTag(tag) {
-        var propertySplitIdx = tag.indexOf(":");
-        if( propertySplitIdx !== -1 ) {
-            var property = tag.substr(0, propertySplitIdx).trim();
-            var val = tag.substr(propertySplitIdx+1).trim();
-            return {
-                property: property,
-                val: val
-            };
-        }
-
-        return null;
-    }
-
-    // Loads save state if exists in the browser memory
-    function loadSavePoint() {
+    function restartStory(options) {
+        options = options || {};
 
         try {
-            let savedState = window.localStorage.getItem(saveStateKey);
-            if (savedState) {
-                story.state.LoadJson(savedState);
-                return true;
-            }
-        } catch (e) {
-            console.debug("Couldn't load save state");
+            state.story = new global.inkjs.Story(global.storyContent);
+        } catch (error) {
+            console.error(error);
+            renderFatal("The compiled Ink story could not be started.");
+            return;
         }
-        return false;
+
+        state.isAdvancing = false;
+        setSceneBackground(null);
+        applyGlobalTags();
+        renderTurn({ scroll: options.scroll !== false });
     }
 
-    // Detects which theme (light or dark) to use
-    function setupTheme(globalTagTheme) {
+    function applyGlobalTags() {
+        var author = "";
+        var tags = Array.isArray(state.story.globalTags) ? state.story.globalTags : [];
 
-        // load theme from browser memory
-        var savedTheme;
-        try {
-            savedTheme = window.localStorage.getItem(themeKey);
-        } catch (e) {
-            console.debug("Couldn't load saved theme");
-        }
-
-        // Check whether the OS/browser is configured for dark mode
-        var browserDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-        if (savedTheme === "dark"
-            || (savedTheme == undefined && globalTagTheme === "dark")
-            || (savedTheme == undefined && globalTagTheme == undefined && browserDark))
-            document.body.classList.add("dark");
-    }
-
-    // Used to hook up the functionality for global functionality buttons
-    function setupButtons(hasSave) {
-
-        let rewindEl = document.getElementById("rewind");
-        if (rewindEl) rewindEl.addEventListener("click", function(event) {
-            removeAll("p");
-            removeAll("img");
-            setVisible(".header", false);
-            restart();
-        });
-
-        let saveEl = document.getElementById("save");
-        if (saveEl) saveEl.addEventListener("click", function(event) {
-            try {
-                window.localStorage.setItem(saveStateKey, savePoint);
-                document.getElementById("reload").removeAttribute("disabled");
-                window.localStorage.setItem(themeKey, document.body.classList.contains("dark") ? "dark" : "");
-            } catch (e) {
-                console.warn("Couldn't save state");
-            }
-
-        });
-
-        let reloadEl = document.getElementById("reload");
-        if (!hasSave) {
-            reloadEl.setAttribute("disabled", "disabled");
-        }
-        reloadEl.addEventListener("click", function(event) {
-            if (reloadEl.getAttribute("disabled"))
+        tags.forEach(function (tag) {
+            var splitTag = splitPropertyTag(tag);
+            if (!splitTag) {
                 return;
-
-            removeAll("p");
-            removeAll("img");
-            try {
-                let savedState = window.localStorage.getItem(saveStateKey);
-                if (savedState) story.state.LoadJson(savedState);
-            } catch (e) {
-                console.debug("Couldn't load save state");
             }
-            continueStory(true);
+
+            if (splitTag.property.toLowerCase() === "author") {
+                author = splitTag.val;
+            }
         });
 
-        let themeSwitchEl = document.getElementById("theme-switch");
-        if (themeSwitchEl) themeSwitchEl.addEventListener("click", function(event) {
-            document.body.classList.add("switched");
-            document.body.classList.toggle("dark");
-            try {
-                window.localStorage.setItem(themeKey, document.body.classList.contains("dark") ? "dark" : "");
-            } catch (e) {
-                console.debug("Couldn't save theme");
+        if (author) {
+            dom.storyCredit.hidden = false;
+            dom.storyCredit.textContent = "Author: " + author;
+        } else {
+            dom.storyCredit.hidden = true;
+            dom.storyCredit.textContent = "";
+        }
+    }
+
+    function renderTurn(options) {
+        options = options || {};
+
+        if (!state.story) {
+            return;
+        }
+
+        try {
+            var packet = collectScenePacket();
+            if (packet.restarted) {
+                return;
             }
+
+            renderScene(packet);
+            renderChoices(packet);
+            updateStatus();
+            updateChrome(packet);
+            state.isAdvancing = false;
+
+            if (options.scroll !== false) {
+                scrollToTop();
+            }
+        } catch (error) {
+            console.error(error);
+            state.isAdvancing = false;
+            renderFatal("The story UI hit a rendering error.");
+        }
+    }
+
+    function collectScenePacket() {
+        var items = [];
+        var endingTitle = "";
+        var restartRequested = false;
+
+        while (state.story.canContinue) {
+            var paragraphText = state.story.Continue();
+            var tagOutcome = processTags(state.story.currentTags || [], items);
+
+            if (tagOutcome.restartRequested) {
+                restartRequested = true;
+                break;
+            }
+
+            var htmlText = trimStoryText(paragraphText);
+            if (!htmlText) {
+                continue;
+            }
+
+            var plainText = stripHtml(htmlText);
+            if (!plainText) {
+                continue;
+            }
+
+            if (STATUS_LINE_RE.test(plainText)) {
+                continue;
+            }
+
+            if (ENDING_LINE_RE.test(plainText)) {
+                endingTitle = plainText.replace(ENDING_LINE_RE, "").trim();
+                continue;
+            }
+
+            items.push({
+                type: "paragraph",
+                html: htmlText,
+                classes: tagOutcome.classes
+            });
+        }
+
+        if (restartRequested) {
+            restartStory({ scroll: false });
+            return { restarted: true };
+        }
+
+        return {
+            items: items,
+            choices: state.story.currentChoices.slice(),
+            endingTitle: endingTitle,
+            isEnding: !state.story.canContinue && state.story.currentChoices.length === 0
+        };
+    }
+
+    function processTags(tags, items) {
+        var classes = [];
+        var restartRequested = false;
+
+        tags.forEach(function (tag) {
+            var splitTag = splitPropertyTag(tag);
+            var property = splitTag ? splitTag.property.toUpperCase() : "";
+
+            if (splitTag && property === "CLASS") {
+                classes.push(splitTag.val);
+                return;
+            }
+
+            if (splitTag && property === "IMAGE") {
+                items.push({
+                    type: "image",
+                    src: splitTag.val
+                });
+                return;
+            }
+
+            if (splitTag && property === "BACKGROUND") {
+                setSceneBackground(splitTag.val);
+                return;
+            }
+
+            if (splitTag && property === "LINK") {
+                global.location.href = splitTag.val;
+                return;
+            }
+
+            if (splitTag && property === "LINKOPEN") {
+                global.open(splitTag.val, "_blank", "noopener,noreferrer");
+                return;
+            }
+
+            if (String(tag).toUpperCase() === "CLEAR") {
+                items.length = 0;
+                return;
+            }
+
+            if (String(tag).toUpperCase() === "RESTART") {
+                restartRequested = true;
+            }
+        });
+
+        return {
+            classes: classes,
+            restartRequested: restartRequested
+        };
+    }
+
+    function renderScene(packet) {
+        var fragment = document.createDocumentFragment();
+        var leadAssigned = false;
+
+        packet.items.forEach(function (item) {
+            if (item.type === "image") {
+                var image = document.createElement("img");
+                image.className = "story-image";
+                image.src = item.src;
+                image.alt = "";
+                fragment.appendChild(image);
+                return;
+            }
+
+            var paragraph = document.createElement("p");
+            paragraph.className = "story-line";
+            paragraph.innerHTML = item.html;
+
+            if (!leadAssigned) {
+                paragraph.classList.add("story-line--lead");
+                leadAssigned = true;
+            }
+
+            item.classes.forEach(function (customClass) {
+                paragraph.classList.add(customClass);
+            });
+
+            fragment.appendChild(paragraph);
+        });
+
+        if (!packet.items.length) {
+            var placeholder = document.createElement("p");
+            placeholder.className = "story-line story-line--lead";
+            placeholder.textContent = "...";
+            fragment.appendChild(placeholder);
+        }
+
+        dom.scene.replaceChildren(fragment);
+    }
+
+    function renderChoices(packet) {
+        dom.choices.replaceChildren();
+
+        if (packet.isEnding) {
+            dom.choicesPanel.hidden = true;
+            return;
+        }
+
+        dom.choicesPanel.hidden = false;
+
+        var fragment = document.createDocumentFragment();
+        packet.choices.forEach(function (choice) {
+            var choiceState = getChoiceState(choice);
+            var button = document.createElement("button");
+            var marker = document.createElement("span");
+            var label = document.createElement("span");
+
+            button.type = "button";
+            button.className = "choice-button";
+            button.disabled = state.isAdvancing || !choiceState.clickable;
+
+            marker.className = "choice-marker";
+            marker.setAttribute("aria-hidden", "true");
+            marker.textContent = choiceState.clickable ? ">" : "x";
+
+            label.className = "choice-label";
+            label.innerHTML = choice.text;
+
+            button.appendChild(marker);
+            button.appendChild(label);
+
+            choiceState.classes.forEach(function (customClass) {
+                button.classList.add(customClass);
+            });
+
+            if (choiceState.clickable) {
+                button.addEventListener("click", function () {
+                    advanceChoice(choice.index);
+                });
+            }
+
+            fragment.appendChild(button);
+        });
+
+        dom.choices.appendChild(fragment);
+    }
+
+    function getChoiceState(choice) {
+        var classes = [];
+        var clickable = true;
+
+        (choice.tags || []).forEach(function (tag) {
+            var splitTag = splitPropertyTag(tag);
+            var property = splitTag ? splitTag.property.toUpperCase() : "";
+
+            if (splitTag && property === "CLASS") {
+                classes.push(splitTag.val);
+                return;
+            }
+
+            if (String(tag).toUpperCase() === "UNCLICKABLE") {
+                clickable = false;
+            }
+        });
+
+        return {
+            classes: classes,
+            clickable: clickable
+        };
+    }
+
+    function advanceChoice(index) {
+        if (state.isAdvancing || !state.story) {
+            return;
+        }
+
+        state.isAdvancing = true;
+        disableChoices();
+
+        try {
+            state.story.ChooseChoiceIndex(index);
+            renderTurn({ scroll: true });
+        } catch (error) {
+            console.error(error);
+            state.isAdvancing = false;
+            renderFatal("The selected choice could not be processed.");
+        }
+    }
+
+    function disableChoices() {
+        dom.choices.querySelectorAll("button").forEach(function (button) {
+            button.disabled = true;
         });
     }
 
-})(storyContent);
+    function updateStatus() {
+        var playerId = readVar("player_id", "");
+        var health = clampNumber(readVar("health", 0), 0, 3);
+        var bullets = clampNumber(readVar("bullets", 0), 0, 5);
+        var cards = [];
+
+        if (readVar("keycard_a", false)) {
+            cards.push("A");
+        }
+
+        if (readVar("keycard_b", false)) {
+            cards.push("B");
+        }
+
+        dom.statusPlayer.textContent = playerId || "Pending";
+        dom.statusHealth.textContent = formatRatio(health, 3);
+        dom.statusAmmo.textContent = formatRatio(bullets, 5);
+
+        dom.healthCard.classList.toggle("is-alert", health <= 1);
+        dom.ammoCard.classList.toggle("is-alert", bullets <= 1);
+        dom.playerCard.classList.toggle("is-alert", !playerId);
+
+        dom.cardsCard.hidden = cards.length === 0;
+        dom.statusCards.replaceChildren();
+
+        cards.forEach(function (cardId) {
+            var card = document.createElement("li");
+            card.className = "card-pill";
+            card.textContent = "Card " + cardId;
+            dom.statusCards.appendChild(card);
+        });
+    }
+
+    function updateChrome(packet) {
+        var playerId = readVar("player_id", "");
+        var sessionText = "";
+        var sceneHeading = "";
+        var choiceHeading = "";
+        var titleText = "Project Mimic Root";
+
+        if (!playerId) {
+            sessionText = "Select a subject to begin.";
+            sceneHeading = "Intake Selection";
+            choiceHeading = "Select Subject";
+        } else if (packet.isEnding) {
+            sessionText = "Subject " + playerId + " // outcome logged.";
+            sceneHeading = "Final Record";
+            choiceHeading = "No Further Actions";
+            titleText = packet.endingTitle
+                ? packet.endingTitle + " • Project Mimic Root"
+                : "Project Mimic Root";
+        } else {
+            sessionText = "Subject " + playerId + " // containment in progress.";
+            sceneHeading = "Current Scene";
+            choiceHeading = "Available Actions";
+            titleText = "Subject " + playerId + " • Project Mimic Root";
+        }
+
+        dom.sessionLabel.textContent = sessionText;
+        dom.sceneHeading.textContent = sceneHeading;
+        dom.choicesHeading.textContent = choiceHeading;
+        document.title = titleText;
+
+        document.body.classList.toggle("is-ending", packet.isEnding);
+        dom.endingPanel.hidden = !packet.isEnding;
+
+        if (packet.isEnding) {
+            dom.endingTitle.textContent = packet.endingTitle || "Run Complete";
+            dom.endingSummary.textContent = playerId
+                ? "Outcome recorded for Subject " + playerId + ". Restart to explore another route."
+                : "This route has concluded. Restart to begin again.";
+        } else {
+            dom.endingTitle.textContent = "Run Complete";
+            dom.endingSummary.textContent = "This route has concluded. Restart to follow another branch.";
+        }
+    }
+
+    function renderFatal(message) {
+        document.body.classList.remove("is-ending");
+        dom.scene.replaceChildren();
+        dom.choices.replaceChildren();
+        dom.choicesPanel.hidden = true;
+        dom.endingPanel.hidden = true;
+        dom.cardsCard.hidden = true;
+        setSceneBackground(null);
+
+        var paragraph = document.createElement("p");
+        paragraph.className = "story-line story-line--lead";
+        paragraph.textContent = message;
+        dom.scene.appendChild(paragraph);
+
+        dom.sceneHeading.textContent = "System Error";
+        dom.sessionLabel.textContent = "The story interface could not continue.";
+        document.title = "Project Mimic Root";
+    }
+
+    function readVar(name, fallback) {
+        if (!state.story) {
+            return fallback;
+        }
+
+        try {
+            var value = state.story.variablesState.$(name);
+            return value == null ? fallback : value;
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    function setSceneBackground(source) {
+        var value = source
+            ? 'url("' + source.replace(/"/g, '\\"') + '")'
+            : 'url("./ink_background.png")';
+        document.documentElement.style.setProperty("--scene-background-image", value);
+    }
+
+    function formatRatio(value, maxValue) {
+        return String(value) + " / " + String(maxValue);
+    }
+
+    function clampNumber(value, min, max) {
+        var number = Number(value);
+        if (!Number.isFinite(number)) {
+            return min;
+        }
+
+        return Math.max(min, Math.min(max, number));
+    }
+
+    function trimStoryText(text) {
+        return String(text || "").replace(/^\s+|\s+$/g, "");
+    }
+
+    function stripHtml(text) {
+        return String(text || "")
+            .replace(/<[^>]*>/g, "")
+            .replace(/&nbsp;/gi, " ")
+            .trim();
+    }
+
+    function splitPropertyTag(tag) {
+        var propertySplitIndex = String(tag).indexOf(":");
+        if (propertySplitIndex === -1) {
+            return null;
+        }
+
+        return {
+            property: String(tag).slice(0, propertySplitIndex).trim(),
+            val: String(tag).slice(propertySplitIndex + 1).trim()
+        };
+    }
+
+    function scrollToTop() {
+        var behavior = MOTION_QUERY && MOTION_QUERY.matches ? "smooth" : "auto";
+
+        global.scrollTo({
+            top: 0,
+            behavior: behavior
+        });
+    }
+})(window);

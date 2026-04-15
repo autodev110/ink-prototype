@@ -2,37 +2,96 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-
-    <title>Ink-web</title>
-
+    <title>Project Mimic Root</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <link rel="stylesheet" href="style.css">
-
+    <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
-
-    <div class="outerContainer">
-        <h3 class="written-in-ink"><a href="https://www.inklestudios.com/ink" target="_blank" rel="noreferrer">WRITTEN IN INK</a></h3>
-
-        <div id="controls" class="buttons">
-          <a id="rewind" title="Restart story from beginning">restart</a>
-          <a id="save" title="Save progress">save</a>
-          <a id="reload" title="Reload from save point">load</a>
-          <a id="theme-switch" title="Switch theme">theme</a>
-        </div>
-
-        <div id="story" class="container">
-            <div class="header">
-                <h1>Ink-web</h1>
-                <h2 class="byline"></h2>
+    <div class="app-shell" data-app>
+        <header class="app-header" aria-label="Application header">
+            <div class="header-copy">
+                <p class="system-label">Containment Narrative Interface</p>
+                <h1>Project Mimic Root</h1>
+                <p id="sessionLabel" class="session-label">Intake selection pending.</p>
+                <p id="storyCredit" class="story-credit" hidden></p>
             </div>
-        </div>
+
+            <div class="header-actions">
+                <button id="restartButton" class="control-button" type="button">
+                    Restart Run
+                </button>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <section class="status-strip" aria-label="Current status">
+                <div class="status-card" id="playerCard">
+                    <span class="status-label">Subject</span>
+                    <span id="statusPlayer" class="status-value">Pending</span>
+                </div>
+
+                <div class="status-card" id="healthCard">
+                    <span class="status-label">Health</span>
+                    <span id="statusHealth" class="status-value">3 / 3</span>
+                </div>
+
+                <div class="status-card" id="ammoCard">
+                    <span class="status-label">Ammo</span>
+                    <span id="statusAmmo" class="status-value">2 / 5</span>
+                </div>
+
+                <div class="status-card status-card--cards" id="cardsCard" hidden>
+                    <span class="status-label">Access</span>
+                    <ul id="statusCards" class="card-list" aria-label="Collected access cards"></ul>
+                </div>
+            </section>
+
+            <section class="scene-panel panel" aria-labelledby="sceneHeading">
+                <div class="panel-header">
+                    <p class="panel-label">Current Scene</p>
+                    <h2 id="sceneHeading">Intake Selection</h2>
+                </div>
+
+                <div id="scene" class="scene" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <section id="choicesPanel" class="choices-panel panel" aria-labelledby="choicesHeading">
+                <div class="panel-header">
+                    <p class="panel-label">Available Actions</p>
+                    <h2 id="choicesHeading">Select Subject</h2>
+                </div>
+
+                <div id="choices" class="choice-list"></div>
+            </section>
+
+            <section id="endingPanel" class="ending-panel panel" aria-labelledby="endingTitle" hidden>
+                <div class="panel-header">
+                    <p class="panel-label">Outcome Logged</p>
+                    <h2 id="endingTitle">Run Complete</h2>
+                </div>
+
+                <p id="endingSummary" class="ending-summary">
+                    This route has concluded. Restart to follow another branch.
+                </p>
+
+                <div class="ending-actions">
+                    <button id="endingRestartButton" class="control-button control-button--primary" type="button">
+                        Run Again
+                    </button>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <script src="ink.js"></script>
-    <script src="Untitled.js"></script>
-    <script src="main.js"></script>
+    <noscript>
+        <div class="noscript-warning">
+            JavaScript is required to play this story.
+        </div>
+    </noscript>
+
+    <script src="./ink.js" defer></script>
+    <script src="./Untitled.js" defer></script>
+    <script src="./main.js" defer></script>
 </body>
 </html>
